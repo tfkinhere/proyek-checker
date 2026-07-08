@@ -40,7 +40,6 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  // FUNGSI UTAMA UNTUK MENEMBAK API LARAVEL
   Future<void> _fetchGameData(String appId) async {
     setState(() {
       _isLoading = true;
@@ -51,7 +50,6 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       Dio dio = Dio();
 
-      // Kirim request POST ke Laravel dengan membawa app_id dan header JSON
       Response response = await dio.post(
         url,
         data: {'app_id': appId},
@@ -78,25 +76,43 @@ class _DashboardPageState extends State<DashboardPage> {
         _isLoading = false;
       });
 
-      String pesanError = 'Gagal terhubung: $e';
+      String pesanError = 'Gagal terhubung ke server.';
 
-      // MENGINTIP PESAN ASLI DARI LARAVEL
+      // Membaca error 404 atau 422 dari Laravel dengan rapi
       if (e is DioException && e.response != null) {
-        pesanError = 'Ditolak Laravel (422): ${e.response?.data}';
+        final dataLengkap = e.response?.data;
+        if (dataLengkap is Map && dataLengkap.containsKey('message')) {
+          pesanError = dataLengkap['message'];
+        } else {
+          pesanError =
+              'Terjadi kesalahan pada server (Status: ${e.response?.statusCode})';
+        }
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.redAccent,
-            duration: const Duration(seconds: 6),
-            content: Text(pesanError),
+            duration: const Duration(seconds: 4),
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    pesanError,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       }
     }
   }
 
+  // FUNGSI BUILD DASHBOARD YANG TADI SEMPAT TERHAPUS
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -289,9 +305,6 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-// ========================================================
-// HALAMAN HASIL (Menerima Data Dinamis dari API)
-// ========================================================
 class ResultPage extends StatelessWidget {
   final dynamic gameData;
   const ResultPage({super.key, required this.gameData});
@@ -343,35 +356,96 @@ class ResultPage extends StatelessWidget {
   }
 
   Widget _buildOverviewTab() {
-    return Padding(
+    double laptopUsableRam = 6.0;
+
+    double minRam = double.tryParse(gameData['min_ram'].toString()) ?? 0.0;
+    double recRam = double.tryParse(gameData['rec_ram'].toString()) ?? 0.0;
+
+    String statusTitle = '';
+    String statusDesc = '';
+    Color statusColor = Colors.grey;
+    IconData statusIcon = Icons.help_outline;
+
+    if (laptopUsableRam >= recRam) {
+      statusTitle = 'SANGAT LAYAK';
+      statusDesc =
+          'Laptop kamu memenuhi atau melampaui spesifikasi rekomendasi. Siap rata kanan!';
+      statusColor = Colors.green;
+      statusIcon = Icons.check_circle_outline;
+    } else if (laptopUsableRam >= minRam) {
+      statusTitle = 'LAYAK (RATA KIRI)';
+      statusDesc =
+          'Memori usable (6 GB) memenuhi syarat minimum, tetapi di bawah rekomendasi. Turunkan grafis agar tidak patah-patah.';
+      statusColor = Colors.amber;
+      statusIcon = Icons.warning_amber_rounded;
+    } else {
+      statusTitle = 'TIDAK LAYAK';
+      statusDesc =
+          'Memori usable kamu (6 GB) berada di bawah syarat minimum game ini ($minRam GB). Sangat berisiko crash atau lag berat.';
+      statusColor = Colors.redAccent;
+      statusIcon = Icons.error_outline;
+    }
+
+    String appId = gameData['app_id'].toString();
+    String bannerUrl =
+        'https://cdn.akamai.steamstatic.com/steam/apps/$appId/header.jpg';
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.network(
+              bannerUrl,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 150,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F1F1F),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.image_not_supported,
+                    color: Colors.white38,
+                    size: 40,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
+              color: statusColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.green, width: 1.5),
+              border: Border.all(color: statusColor, width: 1.5),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-                SizedBox(height: 16),
+                Icon(statusIcon, size: 64, color: statusColor),
+                const SizedBox(height: 16),
                 Text(
-                  'TERKONEKSI KE LARAVEL',
+                  statusTitle,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.green,
+                    color: statusColor,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
-                  'Data berhasil ditarik dari database lokal. Geser tab ke kanan untuk melihat spesifikasi asli!',
+                  statusDesc,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70),
+                  style: const TextStyle(color: Colors.white70, height: 1.4),
                 ),
               ],
             ),
