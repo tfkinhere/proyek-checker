@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "114117253143",
+    "project_id": "game-checker-6ef7d",
+    "storage_bucket": "game-checker-6ef7d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:114117253143:android:414f287dd3c4d536e9e452",
+        "android_client_info": {
+          "package_name": "com.example.game_checker_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "114117253143-aag1geql2hpsp689dm9ec7kf11rkmaso.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVpjRFXeS5uvg93wM3nCSVY2Pha9gSQRs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "114117253143-aag1geql2hpsp689dm9ec7kf11rkmaso.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
