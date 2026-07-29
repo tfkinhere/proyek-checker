@@ -11,8 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('scraping_logs', function (Blueprint $table) {
+        Schema::create('games', function (Blueprint $table) {
             $table->id();
+            $table->string('steam_app_id')->unique();
+            $table->string('title');
+            $table->string('banner_url')->nullable();
+            $table->json('min_specs')->nullable(); // Kolom JSON ini yang tadi belum ada di MySQL
+            $table->json('rec_specs')->nullable(); // Kolom JSON ini juga
             $table->timestamps();
         });
     }
@@ -22,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('scraping_logs');
+        Schema::dropIfExists('games');
     }
 };

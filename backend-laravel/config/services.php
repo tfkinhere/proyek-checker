@@ -2,6 +2,15 @@
 
 return [
 
+    'firebase' => [
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+        'api_key' => env('FIREBASE_API_KEY'),
+    ],
+
+    'steam' => [
+        'public_url' => env('STEAM_PUBLIC_URL', env('APP_URL')),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

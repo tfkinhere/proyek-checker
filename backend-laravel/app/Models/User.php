@@ -19,9 +19,11 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'firebase_uid',
         'name',
         'email',
-        'password',
+        'avatar_url',
+        'steam_id',
     ];
 
     /**
@@ -45,5 +47,10 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function specs()
+    {
+        return $this->hasMany(UserSpec::class);
     }
 }

@@ -7,6 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "kreait/firebase-php": "^7.13",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1"
@@ -74,6 +75,11 @@
         }
     },
     "config": {
+        "audit": {
+            "ignore": [
+                "PKSA-y2cr-5h3j-g3ys"
+            ]
+        },
         "optimize-autoloader": true,
         "preferred-install": "dist",
         "sort-packages": true,

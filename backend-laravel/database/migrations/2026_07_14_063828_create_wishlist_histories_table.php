@@ -11,23 +11,20 @@ return new class extends Migration
      */
     public function up(): void
 {
-    Schema::create('hardware_benchmarks', function (Blueprint $table) {
+    Schema::create('wishlist_histories', function (Blueprint $table) {
         $table->id();
-        $table->enum('component_type', ['cpu', 'gpu', 'ram', 'storage']);
-        $table->string('component_name');
-        $table->integer('performance_score');
+        $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+        $table->foreignId('game_id')->constrained('games')->onDelete('cascade');
+        $table->string('status')->default('wishlist'); // wishlist / owned / checked
         $table->timestamps();
-
-        // Composite Unique Key
-        $table->unique(['component_type', 'component_name']);
-    });
-}
+        });
+    }
 
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
-        Schema::dropIfExists('hardware_benchmarks');
+        Schema::dropIfExists('wishlist_histories');
     }
 };

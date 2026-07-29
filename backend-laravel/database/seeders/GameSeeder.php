@@ -1,0 +1,193 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\Game;
+
+class GameSeeder extends Seeder
+{
+    public function run(): void
+    {
+        // ✅ Matikan foreign key check dulu agar truncate bisa jalan
+        \DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Game::truncate();
+        \DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        $games = [
+            [
+                'steam_app_id' => '570',
+                'title'        => 'Dota 2',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/570/header.jpg',
+                'min_specs'    => ['ram' => 4, 'storage' => 15],
+                'rec_specs'    => ['ram' => 8, 'storage' => 15],
+                'min_os'       => 'Windows 7 / Vista / XP',
+                'min_cpu'      => 'Intel Core i3 / AMD Phenom II',
+                'min_gpu'      => 'NVIDIA GeForce 8600/9600GT / AMD Radeon HD2600/3600',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i5 / AMD Ryzen 5',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 970 / AMD Radeon RX 470',
+            ],
+            [
+                'steam_app_id' => '730',
+                'title'        => 'Counter-Strike 2',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/730/header.jpg',
+                'min_specs'    => ['ram' => 8, 'storage' => 85],
+                'rec_specs'    => ['ram' => 16, 'storage' => 85],
+                'min_os'       => 'Windows 10 64-bit',
+                'min_cpu'      => 'Intel Core i5-750 / AMD FX-6300',
+                'min_gpu'      => 'NVIDIA GeForce GTX 970 / AMD Radeon RX 480',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i7-4770 / AMD Ryzen 5 1600',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1060 / AMD Radeon RX 580',
+            ],
+            [
+                'steam_app_id' => '271590',
+                'title'        => 'Grand Theft Auto V',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/271590/header.jpg',
+                'min_specs'    => ['ram' => 4, 'storage' => 110],
+                'rec_specs'    => ['ram' => 8, 'storage' => 110],
+                'min_os'       => 'Windows 10 64-bit',
+                'min_cpu'      => 'Intel Core i5-3470 / AMD FX-8350',
+                'min_gpu'      => 'NVIDIA GeForce GTX 660 2GB / AMD Radeon HD 7870 2GB',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i7-3770 / AMD Ryzen 5 1500X',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1060 6GB / AMD Radeon RX 480 4GB',
+            ],
+            [
+                'steam_app_id' => '1085660',
+                'title'        => 'Destiny 2',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/1085660/header.jpg',
+                'min_specs'    => ['ram' => 6, 'storage' => 105],
+                'rec_specs'    => ['ram' => 16, 'storage' => 105],
+                'min_os'       => 'Windows 7 64-bit',
+                'min_cpu'      => 'Intel Core i3-3250 / AMD FX-4350',
+                'min_gpu'      => 'NVIDIA GeForce GTX 660 2GB / AMD Radeon HD 7850 2GB',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i5-8400 / AMD Ryzen 5 2600X',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1060 6GB / AMD Radeon RX 590',
+            ],
+            [
+                'steam_app_id' => '1091500',
+                'title'        => 'Cyberpunk 2077',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/1091500/header.jpg',
+                'min_specs'    => ['ram' => 12, 'storage' => 70],
+                'rec_specs'    => ['ram' => 16, 'storage' => 70],
+                'min_os'       => 'Windows 10 64-bit',
+                'min_cpu'      => 'Intel Core i7-6700K / AMD Ryzen 5 1600',
+                'min_gpu'      => 'NVIDIA GeForce GTX 1060 6GB / AMD Radeon RX 580 8GB',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i7-8700K / AMD Ryzen 5 3600',
+                'rec_gpu'      => 'NVIDIA GeForce RTX 2060 Super / AMD Radeon RX 5700 XT',
+            ],
+            [
+                'steam_app_id' => '1245620',
+                'title'        => 'Elden Ring',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg',
+                'min_specs'    => ['ram' => 12, 'storage' => 60],
+                'rec_specs'    => ['ram' => 16, 'storage' => 60],
+                'min_os'       => 'Windows 10 / 11 64-bit',
+                'min_cpu'      => 'Intel Core i5-8400 / AMD Ryzen 3 3300X',
+                'min_gpu'      => 'NVIDIA GeForce GTX 1060 3GB / AMD Radeon RX 580 4GB',
+                'rec_os'       => 'Windows 10 / 11 64-bit',
+                'rec_cpu'      => 'Intel Core i7-8700K / AMD Ryzen 5 3600X',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1070 8GB / AMD Radeon RX Vega 56 8GB',
+            ],
+            [
+                'steam_app_id' => '1172470',
+                'title'        => 'Apex Legends',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/1172470/header.jpg',
+                'min_specs'    => ['ram' => 6, 'storage' => 75],
+                'rec_specs'    => ['ram' => 8, 'storage' => 75],
+                'min_os'       => 'Windows 7 64-bit',
+                'min_cpu'      => 'Intel Core i3-6300 / AMD FX-4350',
+                'min_gpu'      => 'NVIDIA GeForce GT 640 / AMD Radeon HD 7700',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i5-3570K / AMD Ryzen 5 1600',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 970 / AMD Radeon R9 290',
+            ],
+            [
+                'steam_app_id' => '440',
+                'title'        => 'Team Fortress 2',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/440/header.jpg',
+                'min_specs'    => ['ram' => 1, 'storage' => 15],
+                'rec_specs'    => ['ram' => 2, 'storage' => 15],
+                'min_os'       => 'Windows 7 / Vista / XP',
+                'min_cpu'      => 'Pentium 4 3.0GHz',
+                'min_gpu'      => 'DirectX 8.1 level Graphics Card',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i5 / AMD equivalent',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 660 / AMD Radeon HD 7870',
+            ],
+            [
+                'steam_app_id' => '359550',
+                'title'        => "Tom Clancy's Rainbow Six Siege",
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/359550/header.jpg',
+                'min_specs'    => ['ram' => 6, 'storage' => 85],
+                'rec_specs'    => ['ram' => 8, 'storage' => 85],
+                'min_os'       => 'Windows 10 64-bit',
+                'min_cpu'      => 'Intel Core i3-560 / AMD Phenom II X4 945',
+                'min_gpu'      => 'NVIDIA GeForce GTX 460 / AMD Radeon HD 5870',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i5-4460 / AMD Ryzen 5 1600',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1660 Ti / AMD Radeon RX 590',
+            ],
+            [
+                'steam_app_id' => '1174180',
+                'title'        => 'Red Dead Redemption 2',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/1174180/header.jpg',
+                'min_specs'    => ['ram' => 8, 'storage' => 150],
+                'rec_specs'    => ['ram' => 12, 'storage' => 150],
+                'min_os'       => 'Windows 10 64-bit',
+                'min_cpu'      => 'Intel Core i7-4770K / AMD Ryzen 5 1500X',
+                'min_gpu'      => 'NVIDIA GeForce GTX 1060 6GB / AMD Radeon RX 480 4GB',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i7-4770K / AMD Ryzen 5 1500X',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1070 8GB / AMD Radeon RX 5500 XT 8GB',
+            ],
+            [
+                'steam_app_id' => '582010',
+                'title'        => 'Monster Hunter: World',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/582010/header.jpg',
+                'min_specs'    => ['ram' => 8, 'storage' => 50],
+                'rec_specs'    => ['ram' => 16, 'storage' => 70],
+                'min_os'       => 'Windows 10 64-bit',
+                'min_cpu'      => 'Intel Core i5-4460 / AMD Ryzen 3 1200',
+                'min_gpu'      => 'NVIDIA GeForce GTX 760 / AMD Radeon R7 260x',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i7-3770 / AMD Ryzen 5 1400',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1060 / AMD Radeon RX 570',
+            ],
+            [
+                'steam_app_id' => '236390',
+                'title'        => 'War Thunder',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/236390/header.jpg',
+                'min_specs'    => ['ram' => 4, 'storage' => 60],
+                'rec_specs'    => ['ram' => 8, 'storage' => 70],
+                'min_os'       => 'Windows 7 64-bit',
+                'min_cpu'      => 'Intel Core i3-2100 / AMD Phenom II X4',
+                'min_gpu'      => 'NVIDIA GeForce GTX 560 / AMD Radeon HD 7770',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i5-4460 / AMD Ryzen 3 1200',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 970 / AMD Radeon R9 290',
+            ],
+            [
+                'steam_app_id' => '381210',
+                'title'        => 'Dead by Daylight',
+                'banner_url'   => 'https://cdn.akamai.steamstatic.com/steam/apps/381210/header.jpg',
+                'min_specs'    => ['ram' => 4, 'storage' => 50],
+                'rec_specs'    => ['ram' => 8, 'storage' => 50],
+                'min_os'       => 'Windows 10 64-bit',
+                'min_cpu'      => 'Intel Core i3-4170 / AMD FX-8300',
+                'min_gpu'      => 'NVIDIA GeForce GTX 660 / AMD Radeon HD 7870',
+                'rec_os'       => 'Windows 10 64-bit',
+                'rec_cpu'      => 'Intel Core i5-4460 / AMD Ryzen 3 1300X',
+                'rec_gpu'      => 'NVIDIA GeForce GTX 1060 / AMD Radeon RX 580',
+            ],
+        ];
+
+        foreach ($games as $game) {
+            Game::create($game);
+        }
+    }
+}

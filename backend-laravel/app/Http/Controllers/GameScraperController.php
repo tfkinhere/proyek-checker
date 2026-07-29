@@ -26,20 +26,26 @@ class GameScraperController extends Controller
 
         DB::beginTransaction();
         try {
-            DB::table('games')->insert([
-                'app_id' => $appId, // Simpan app_id ke kolom baru
+            DB::table('games')->updateOrInsert([
+                'steam_app_id' => $appId,
+            ], [
                 'title' => $gameName,
+                'banner_url' => "https://cdn.akamai.steamstatic.com/steam/apps/{$appId}/header.jpg",
+                'min_specs' => json_encode([
+                    'ram' => $minimum['ram_gb'] ?? null,
+                    'storage' => $minimum['storage_gb'] ?? null,
+                ]),
+                'rec_specs' => json_encode([
+                    'ram' => $recommended['ram_gb'] ?? null,
+                    'storage' => $recommended['storage_gb'] ?? null,
+                ]),
                 'min_os' => $minimum['os'] ?? null,
-                'min_cpu' => json_encode($minimum['cpu'] ?? []),
-                'min_ram' => $minimum['ram_gb'] ?? null,
-                'min_gpu' => json_encode($minimum['gpu'] ?? []),
-                'min_storage' => $minimum['storage_gb'] ?? null,
+                'min_cpu' => implode(', ', $minimum['cpu'] ?? []),
+                'min_gpu' => implode(', ', $minimum['gpu'] ?? []),
                 
                 'rec_os' => $recommended['os'] ?? null,
-                'rec_cpu' => json_encode($recommended['cpu'] ?? []),
-                'rec_ram' => $recommended['ram_gb'] ?? null,
-                'rec_gpu' => json_encode($recommended['gpu'] ?? []),
-                'rec_storage' => $recommended['storage_gb'] ?? null,
+                'rec_cpu' => implode(', ', $recommended['cpu'] ?? []),
+                'rec_gpu' => implode(', ', $recommended['gpu'] ?? []),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -72,20 +78,16 @@ class GameScraperController extends Controller
         $appId = $request->input('app_id');
 
         // MENCARI DATA SPESIFIK BERDASARKAN APP ID
-        $game = DB::table('games')->where('app_id', $appId)->first();
+        $game = DB::table('games')->where('steam_app_id', $appId)->first();
 
         if ($game) {
-            $minCpu = json_decode($game->min_cpu, true);
-            $game->min_cpu = is_array($minCpu) ? implode(', ', $minCpu) : $game->min_cpu;
-            
-            $minGpu = json_decode($game->min_gpu, true);
-            $game->min_gpu = is_array($minGpu) ? implode(', ', $minGpu) : $game->min_gpu;
-
-            $recCpu = json_decode($game->rec_cpu, true);
-            $game->rec_cpu = is_array($recCpu) ? implode(', ', $recCpu) : $game->rec_cpu;
-
-            $recGpu = json_decode($game->rec_gpu, true);
-            $game->rec_gpu = is_array($recGpu) ? implode(', ', $recGpu) : $game->rec_gpu;
+            $minSpecs = json_decode($game->min_specs ?? '{}', true) ?: [];
+            $recSpecs = json_decode($game->rec_specs ?? '{}', true) ?: [];
+            $game->app_id = $game->steam_app_id;
+            $game->min_ram = $minSpecs['ram'] ?? 0;
+            $game->min_storage = $minSpecs['storage'] ?? 0;
+            $game->rec_ram = $recSpecs['ram'] ?? 0;
+            $game->rec_storage = $recSpecs['storage'] ?? 0;
 
             return response()->json([
                 'status' => 'success',

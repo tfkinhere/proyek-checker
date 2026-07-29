@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "114117253143-jkvkhtb14qnnobi99aq44mavrsav2kp4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.game_checker_app",
+            "certificate_hash": "35e3ae7410fe329436acc3d7e199e54e51404ef2"
+          }
+        },
+        {
           "client_id": "114117253143-aag1geql2hpsp689dm9ec7kf11rkmaso.apps.googleusercontent.com",
           "client_type": 3
         }
