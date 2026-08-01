@@ -1,4 +1,22 @@
-# game_checker_app
+# Game Checker App
+
+## Release Build Untuk Tahap 5
+
+Saat build production, pastikan URL API produksi disuntikkan lewat `--dart-define`.
+
+Contoh untuk Android:
+
+```bash
+flutter build apk --release --dart-define=API_BASE_URL=https://api.namaaplikasi.com/api
+```
+
+Contoh untuk web:
+
+```bash
+flutter build web --release --dart-define=API_BASE_URL=https://api.namaaplikasi.com/api
+```
+
+Jika `API_BASE_URL` tidak diisi saat release, aplikasi akan berhenti dengan error yang jelas agar tidak memakai IP lokal tanpa sengaja.# game_checker_app
 
 A new Flutter project.
 

@@ -7,6 +7,8 @@ use App\Models\Game;
 use App\Models\UserSpec;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class HomeController extends Controller
 {
@@ -102,12 +104,15 @@ class HomeController extends Controller
                 ]
             ], 200);
 
-        } catch (\Exception $e) {
-            // JARING PENGAMAN: Jika terjadi error PHP, jangan kirim 500 kosong!
-            // Kirim pesan error aslinya agar kita tahu salahnya di mana.
+        } catch (\Throwable $e) {
+            Log::error('Gagal memuat beranda.', [
+                'user_id' => $request->auth_user?->id,
+                'message' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'PHP Crash di Baris ' . $e->getLine() . ': ' . $e->getMessage()
+                'message' => 'Gagal memuat beranda.',
             ], 500);
         }
     }
@@ -119,7 +124,11 @@ public function addWishlist(Request $request)
         $user = $request->auth_user;
         if (!$user) throw new \Exception("User tidak ditemukan.");
 
-        $gameId = $request->game_id;
+        $validated = $request->validate([
+            'game_id' => ['required', 'integer', 'exists:games,id'],
+        ]);
+
+        $gameId = (int) $validated['game_id'];
         $game = \App\Models\Game::find($gameId);
         if (!$game) {
             return response()->json(['status' => 'error', 'message' => 'Game tidak ditemukan.'], 404);
@@ -135,7 +144,7 @@ public function addWishlist(Request $request)
             return response()->json(['status' => 'exists', 'message' => 'Game sudah ada di wishlist.'], 200);
         }
 
-        \DB::table('wishlist_histories')->insert([
+        DB::table('wishlist_histories')->insert([
             'user_id'    => $user->id,
             'game_id'    => $gameId,
             'status'     => 'wishlist',
@@ -143,10 +152,20 @@ public function addWishlist(Request $request)
             'updated_at' => now(),
         ]);
 
+        Log::info('Wishlist ditambahkan.', [
+            'user_id' => $user->id,
+            'game_id' => $gameId,
+        ]);
+
         return response()->json(['status' => 'success', 'message' => 'Game berhasil disimpan!'], 201);
 
-    } catch (\Exception $e) {
-        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+    } catch (\Throwable $e) {
+        Log::error('Gagal menambah wishlist.', [
+            'user_id' => $request->auth_user?->id,
+            'message' => $e->getMessage(),
+        ]);
+
+        return response()->json(['status' => 'error', 'message' => 'Gagal menyimpan game ke wishlist.'], 500);
     }
 }
 
@@ -188,10 +207,20 @@ public function getWishlist(Request $request)
             })
             ->values();
 
+        Log::info('Wishlist diambil.', [
+            'user_id' => $user->id,
+            'total_games' => $wishlist->count(),
+        ]);
+
         return response()->json(['status' => 'success', 'data' => $wishlist], 200);
 
-    } catch (\Exception $e) {
-        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+    } catch (\Throwable $e) {
+        Log::error('Gagal mengambil wishlist.', [
+            'user_id' => $request->auth_user?->id,
+            'message' => $e->getMessage(),
+        ]);
+
+        return response()->json(['status' => 'error', 'message' => 'Gagal mengambil Saved Content.'], 500);
     }
 }
 
@@ -201,14 +230,30 @@ public function removeWishlist(Request $request)
         $user = $request->auth_user;
         if (!$user) throw new \Exception("User tidak ditemukan.");
 
-        \DB::table('wishlist_histories')
+        $validated = $request->validate([
+            'game_id' => ['required', 'integer', 'exists:games,id'],
+        ]);
+
+        $gameId = (int) $validated['game_id'];
+
+        DB::table('wishlist_histories')
             ->where('user_id', $user->id)
-            ->where('game_id', $request->game_id)
+            ->where('game_id', $gameId)
             ->delete();
 
+        Log::info('Wishlist dihapus.', [
+            'user_id' => $user->id,
+            'game_id' => $gameId,
+        ]);
+
         return response()->json(['status' => 'success', 'message' => 'Game dihapus dari wishlist.'], 200);
-    } catch (\Exception $e) {
-        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+    } catch (\Throwable $e) {
+        Log::error('Gagal menghapus wishlist.', [
+            'user_id' => $request->auth_user?->id,
+            'message' => $e->getMessage(),
+        ]);
+
+        return response()->json(['status' => 'error', 'message' => 'Gagal menghapus game dari wishlist.'], 500);
     }
 }
 
@@ -275,10 +320,15 @@ public function removeWishlist(Request $request)
                 'data' => $spec
             ], 200);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::error('Gagal menyimpan spesifikasi.', [
+                'user_id' => $request->auth_user?->id,
+                'message' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'Gagal Simpan Spek (Baris ' . $e->getLine() . '): ' . $e->getMessage()
+                'message' => 'Gagal menyimpan spesifikasi.',
             ], 500);
 }
     }

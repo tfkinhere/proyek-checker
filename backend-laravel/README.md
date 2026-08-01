@@ -54,6 +54,15 @@ In order to ensure that the Laravel community is welcoming to all, please review
 
 If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
+## API Deployment Notes
+
+- Health check aplikasi tersedia di `GET /api/health`.
+- Health check bawaan Laravel untuk Azure App Service tersedia di `GET /up`.
+- Dokumentasi endpoint tersedia di `GET /api/docs`.
+- Firebase Admin service-account JSON disimpan lewat environment variable `FIREBASE_CREDENTIALS`.
+- Sinkronisasi wishlist Steam diproses melalui Laravel Queue dan membutuhkan worker aktif di production.
+- Gunakan `QUEUE_CONNECTION=database` saat deployment Azure.
+
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).

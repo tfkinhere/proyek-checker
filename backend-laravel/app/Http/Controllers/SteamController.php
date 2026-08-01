@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncSteamWishlistJob;
 use App\Models\Game;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class SteamController extends Controller
@@ -28,6 +30,10 @@ class SteamController extends Controller
 
         $token = Str::random(64);
         Cache::put($this->linkCacheKey($token), ['user_id' => $request->auth_user->id], self::LINK_TTL_SECONDS);
+        Log::info('Steam link dimulai.', [
+            'user_id' => $request->auth_user->id,
+            'link_token' => $token,
+        ]);
 
         $callbackUrl = $publicUrl.'/api/steam/callback?link_token='.urlencode($token);
         $query = http_build_query([
@@ -82,6 +88,10 @@ class SteamController extends Controller
 
         $user->update(['steam_id' => $steamId]);
         Cache::put($this->linkCacheKey($token), ['user_id' => $user->id, 'connected' => true], 120);
+        Log::info('Steam berhasil dihubungkan.', [
+            'user_id' => $user->id,
+            'steam_id' => $steamId,
+        ]);
 
         return $this->callbackPage('Akun Steam berhasil dihubungkan. Anda dapat kembali ke aplikasi ini.', true);
     }
@@ -112,6 +122,7 @@ class SteamController extends Controller
     public function unlink(Request $request)
     {
         $request->auth_user->update(['steam_id' => null]);
+        Log::info('Steam diputuskan.', ['user_id' => $request->auth_user->id]);
 
         return response()->json(['status' => 'success', 'message' => 'Koneksi Steam diputuskan.']);
     }
@@ -125,60 +136,44 @@ class SteamController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Hubungkan akun Steam terlebih dahulu.'], 422);
         }
 
-        $url = "https://store.steampowered.com/wishlist/profiles/{$steamId}/wishlistdata/?p=0";
+        $syncToken = Str::random(64);
+        Cache::put($this->wishlistSyncCacheKey($syncToken), [
+            'status' => 'queued',
+            'user_id' => $user->id,
+            'steam_id' => $steamId,
+            'queued_at' => now()->toIso8601String(),
+        ], self::LINK_TTL_SECONDS);
 
-        try {
-            $response = Http::acceptJson()->timeout(20)->get($url);
-            if ($response->status() === 403) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Profil Steam atau wishlist masih privat. Ubah ke Public lalu sinkronkan ulang.',
-                ], 422);
-            }
+        SyncSteamWishlistJob::dispatch($user->id, $syncToken)->onQueue('steam-sync');
 
-            if ($response->status() === 429) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Permintaan ke Steam dibatasi sementara. Tunggu sebentar lalu coba lagi.',
-                ], 429);
-            }
+        Log::info('Sinkronisasi wishlist Steam dimasukkan ke queue.', [
+            'user_id' => $user->id,
+            'steam_id' => $steamId,
+            'sync_token' => $syncToken,
+        ]);
 
-            $steamGames = $response->json();
-            if (!$response->successful() || !is_array($steamGames)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Wishlist Steam tidak dapat diambil. Pastikan profil dan wishlist Steam bersifat Public.',
-                ], 422);
-            }
+        return response()->json([
+            'status' => 'queued',
+            'message' => 'Sinkronisasi wishlist Steam sedang diproses di background.',
+            'sync_token' => $syncToken,
+        ], 202);
+    }
 
-            $savedGames = [];
-            DB::transaction(function () use ($steamGames, $user, &$savedGames) {
-                foreach ($steamGames as $appId => $steamGame) {
-                    if (!is_array($steamGame) || empty($steamGame['name'])) {
-                        continue;
-                    }
-
-                    $game = Game::updateOrCreate(
-                        ['steam_app_id' => (string) $appId],
-                        ['title' => $steamGame['name'], 'banner_url' => $steamGame['capsule'] ?? $steamGame['header'] ?? "https://cdn.akamai.steamstatic.com/steam/apps/{$appId}/header.jpg"],
-                    );
-                    DB::table('wishlist_histories')->updateOrInsert(
-                        ['user_id' => $user->id, 'game_id' => $game->id],
-                        ['status' => 'wishlist', 'updated_at' => now(), 'created_at' => now()],
-                    );
-                    $savedGames[] = $this->gamePayload($game);
-                }
-            });
-
-            return response()->json(['status' => 'success', 'mode' => 'Saved', 'total_games' => count($savedGames), 'data' => $savedGames]);
-        } catch (\Throwable $exception) {
-            report($exception);
-            $message = str_contains(strtolower($exception->getMessage()), 'timed out')
-                ? 'Callback atau sinkronisasi Steam kedaluwarsa. Coba lagi dari awal.'
-                : 'Gagal menyinkronkan wishlist Steam. Coba lagi beberapa saat lagi.';
-
-            return response()->json(['status' => 'error', 'message' => $message], 500);
+    public function wishlistStatus(Request $request, string $token)
+    {
+        $sync = Cache::get($this->wishlistSyncCacheKey($token));
+        if (!$sync || (int) ($sync['user_id'] ?? 0) !== (int) $request->auth_user->id) {
+            return response()->json([
+                'status' => 'expired',
+                'connected' => false,
+                'message' => 'Status sinkronisasi wishlist Steam sudah kedaluwarsa.',
+            ], 404);
         }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $sync,
+        ]);
     }
 
     private function isValidOpenIdResponse(Request $request): bool
@@ -204,6 +199,11 @@ class SteamController extends Controller
     private function linkCacheKey(string $token): string
     {
         return 'steam-link:'.$token;
+    }
+
+    private function wishlistSyncCacheKey(string $token): string
+    {
+        return 'steam-wishlist-sync:'.$token;
     }
 
     private function callbackPage(string $message, bool $success)

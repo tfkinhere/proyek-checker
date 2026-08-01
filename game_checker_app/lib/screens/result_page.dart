@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 import '../services/api_service.dart';
+import '../services/wishlist_refresh_notifier.dart';
 
 class ResultPage extends StatefulWidget {
   final dynamic gameData;
@@ -133,6 +134,10 @@ class _ResultPageState extends State<ResultPage> {
         _isWishlistLoading = false;
         if (success) _isSaved = !wasSaved;
       });
+
+      if (success) {
+        WishlistRefreshNotifier.notifyChanged();
+      }
 
       if (!success) {
         ScaffoldMessenger.of(context).showSnackBar(

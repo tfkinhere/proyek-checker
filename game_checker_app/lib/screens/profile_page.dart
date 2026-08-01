@@ -13,6 +13,7 @@ import '../utils/glass_snackbar.dart';
 import 'change_spec_page.dart';
 import 'tutorial_page.dart';
 import '../services/api_service.dart';
+import '../services/wishlist_refresh_notifier.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -25,6 +26,7 @@ class _ProfilePageState extends State<ProfilePage> {
   File? _profileImage;
   bool _isSteamConnected = false;
   bool _isLoadingWishlist = false;
+  late final VoidCallback _wishlistRefreshListener;
 
   List<dynamic> _cachedWishlist = [];
   List<dynamic> _savedGames = [];
@@ -33,8 +35,20 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    _wishlistRefreshListener = () {
+      if (mounted) {
+        _loadSavedGames();
+      }
+    };
+    WishlistRefreshNotifier.version.addListener(_wishlistRefreshListener);
     _loadUserData();
     _loadSavedGames();
+  }
+
+  @override
+  void dispose() {
+    WishlistRefreshNotifier.version.removeListener(_wishlistRefreshListener);
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -144,28 +158,44 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isLoadingWishlist = true);
     try {
       final responseData = await ApiService.syncSteamWishlist();
-      if (responseData['data'] is! List) {
-        throw Exception('Respons wishlist dari server tidak valid.');
+      final status = responseData['status']?.toString() ?? 'queued';
+      final syncToken = responseData['sync_token']?.toString();
+
+      if (status == 'queued') {
+        if (syncToken == null || syncToken.isEmpty) {
+          throw Exception('Token sinkronisasi wishlist tidak ditemukan.');
+        }
+        await _waitForSteamWishlistSync(syncToken);
+        return;
       }
-      final gamesData = responseData['data'] as List<dynamic>;
-      final modeInfo = responseData['mode']?.toString() ?? 'Saved';
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          'cached_wishlist_${user.uid}',
-          jsonEncode(gamesData),
-        );
-        await prefs.setString('cached_mode_${user.uid}', modeInfo);
+
+      if (responseData['data'] is List) {
+        final gamesData = responseData['data'] as List<dynamic>;
+        final modeInfo = responseData['mode']?.toString() ?? 'Saved';
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(
+            'cached_wishlist_${user.uid}',
+            jsonEncode(gamesData),
+          );
+          await prefs.setString('cached_mode_${user.uid}', modeInfo);
+        }
+        if (!mounted) return;
+        setState(() {
+          _cachedWishlist = gamesData;
+          _cachedMode = modeInfo;
+        });
+        await _loadSavedGames();
+        GlassSnackBar.show(context, 'Wishlist Steam berhasil disinkronkan.');
+        _openWishlistPage(gamesData, modeInfo);
+        return;
       }
-      if (!mounted) return;
-      setState(() {
-        _cachedWishlist = gamesData;
-        _cachedMode = modeInfo;
-      });
-      await _loadSavedGames();
-      GlassSnackBar.show(context, 'Wishlist Steam berhasil disinkronkan.');
-      _openWishlistPage(gamesData, modeInfo);
+
+      throw Exception(
+        responseData['message']?.toString() ??
+            'Respons wishlist dari server tidak valid.',
+      );
     } catch (error) {
       if (mounted) {
         GlassSnackBar.show(
@@ -176,6 +206,65 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } finally {
       if (mounted) setState(() => _isLoadingWishlist = false);
+    }
+  }
+
+  Future<void> _waitForSteamWishlistSync(String syncToken) async {
+    for (var attempt = 0; attempt < 20 && mounted; attempt++) {
+      await Future<void>.delayed(const Duration(seconds: 3));
+      try {
+        final status = await ApiService.fetchSteamWishlistSyncStatus(syncToken);
+        final syncData = status['data'] is Map<String, dynamic>
+            ? status['data'] as Map<String, dynamic>
+            : null;
+        final syncStatus = syncData?['status']?.toString() ?? '';
+
+        if (syncStatus == 'completed') {
+          final refreshedGames = await ApiService.fetchSavedGames();
+          if (!mounted) return;
+          setState(() {
+            _savedGames = refreshedGames;
+            _cachedWishlist = refreshedGames;
+            _cachedMode = 'Saved';
+          });
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(
+              'cached_wishlist_${user.uid}',
+              jsonEncode(refreshedGames),
+            );
+            await prefs.setString('cached_mode_${user.uid}', 'Saved');
+          }
+          GlassSnackBar.show(context, 'Wishlist Steam berhasil disinkronkan.');
+          _openWishlistPage(refreshedGames, 'Saved');
+          return;
+        }
+
+        if (syncStatus == 'failed') {
+          throw Exception(
+            syncData?['message']?.toString() ??
+                'Sinkronisasi wishlist Steam gagal.',
+          );
+        }
+      } catch (error) {
+        if (mounted) {
+          GlassSnackBar.show(
+            context,
+            error.toString().replaceFirst('Exception: ', ''),
+            isError: true,
+          );
+        }
+        return;
+      }
+    }
+
+    if (mounted) {
+      GlassSnackBar.show(
+        context,
+        'Sinkronisasi masih berjalan. Coba lagi beberapa saat.',
+        isWarning: true,
+      );
     }
   }
 
@@ -508,7 +597,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         _buildMenuItem(
                           Icons.bookmark_border_rounded,
-                          'Saved content (${_savedGames.length})',
+                          'Saved content',
                           onTap: _openSavedContent,
                         ),
                         _buildDivider(),

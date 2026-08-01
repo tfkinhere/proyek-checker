@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +22,24 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        RateLimiter::for('api-general', function (Request $request) {
+            return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('wishlist-write', function (Request $request) {
+            return Limit::perMinute(20)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('steam-link', function (Request $request) {
+            return Limit::perMinute(5)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('steam-link-status', function (Request $request) {
+            return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('steam-sync', function (Request $request) {
+            return Limit::perMinute(5)->by($request->user()?->id ?: $request->ip());
+        });
     }
 }

@@ -1,12 +1,31 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ApiService {
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://192.168.1.2:8000/api',
-  );
+  static const String _devBaseUrl = 'http://192.168.1.2:8000/api';
+
+  static String get baseUrl => _resolveBaseUrl();
+
+  static String _resolveBaseUrl() {
+    const definedBaseUrl = String.fromEnvironment(
+      'API_BASE_URL',
+      defaultValue: '',
+    );
+
+    if (definedBaseUrl.isNotEmpty) {
+      return definedBaseUrl;
+    }
+
+    if (kReleaseMode) {
+      throw StateError(
+        'API_BASE_URL wajib diisi saat build release. Gunakan URL API produksi Azure.',
+      );
+    }
+
+    return _devBaseUrl;
+  }
 
   // Fungsi untuk mengambil data Beranda dari Laravel
   static Future<Map<String, dynamic>> fetchHomeData() async {
@@ -254,6 +273,24 @@ class ApiService {
         )
         .timeout(const Duration(seconds: 30));
     return _decodeObject(response, 'Wishlist Steam tidak dapat disinkronkan.');
+  }
+
+  static Future<Map<String, dynamic>> fetchSteamWishlistSyncStatus(
+    String syncToken,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('User belum login ke Firebase.');
+    final token = await user.getIdToken();
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/steam/wishlist/$syncToken'),
+          headers: _authHeaders(token),
+        )
+        .timeout(const Duration(seconds: 15));
+    return _decodeObject(
+      response,
+      'Status sinkronisasi wishlist Steam tidak dapat dibaca.',
+    );
   }
 
   static Map<String, String> _authHeaders(String? token) => {
