@@ -35,11 +35,13 @@ jobs:
         run: |
           composer validate --no-check-publish
           composer install --prefer-dist --no-progress --no-interaction --optimize-autoloader
+          php artisan config:cache
+          php artisan route:cache
 
       - name: Prepare deployment package
         run: |
           cd backend-laravel
-          zip -r ../php-app.zip .
+          zip -r ../php-app.zip . -x "storage/logs/*" "node_modules/*"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -72,3 +74,16 @@ jobs:
         with:
           app-name: game-checker
           package: php-app.zip
+
+      - name: Run Laravel Migrations
+        uses: azure/cli@v1
+        with:
+          inlineScript: |
+            az webapp config appsettings set --name game-checker --resource-group rg-game-checker --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=true"
+            az webapp ssh -n game-checker -g rg-game-checker --startup-command "php artisan migrate --force"
+          # Perintah az webapp ssh --startup-command tidak akan mengembalikan output ke GitHub Actions secara langsung
+          # Untuk melihat output migrasi, Anda perlu memeriksa log Azure App Service atau SSH manual ke app service.
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_793E5F7AA6004712954E8DC17C157B2B }}
+          AZURE_TENANT_ID: ${{ secrets.AZUREAPPSERVICE_TENANTID_06A8E081C08F47CD9F77B30DEA3EF954 }}
+          AZURE_CLIENT_ID: ${{ secrets.AZUREAPPSERVICE_CLIENTID_21DD0617CC0D42DAA0BA3B707C5A63D3 }}
