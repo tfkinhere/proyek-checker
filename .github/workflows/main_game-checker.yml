@@ -74,13 +74,3 @@ jobs:
         with:
           app-name: game-checker
           package: php-app.zip
-
-      - name: Run Laravel Migrations
-        uses: azure/cli@v1
-        with:
-          inlineScript: |
-            az webapp exec --name game-checker --resource-group rg-game-checker --command "php /home/site/wwwroot/artisan migrate --force"
-        env:
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_793E5F7AA6004712954E8DC17C157B2B }}
-          AZURE_TENANT_ID: ${{ secrets.AZUREAPPSERVICE_TENANTID_06A8E081C08F47CD9F77B30DEA3EF954 }}
-          AZURE_CLIENT_ID: ${{ secrets.AZUREAPPSERVICE_CLIENTID_21DD0617CC0D42DAA0BA3B707C5A63D3 }}
