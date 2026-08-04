@@ -35,8 +35,14 @@ jobs:
         run: |
           composer validate --no-check-publish
           composer install --prefer-dist --no-progress --no-interaction --optimize-autoloader
-          php artisan config:cache
-          php artisan route:cache
+
+      - name: Prepare Laravel cache directories
+        run: |
+          mkdir -p backend-laravel/bootstrap/cache
+          mkdir -p backend-laravel/storage/framework/cache/data
+          mkdir -p backend-laravel/storage/framework/sessions
+          mkdir -p backend-laravel/storage/framework/views
+          mkdir -p backend-laravel/storage/logs
 
       - name: Prepare deployment package
         run: |
