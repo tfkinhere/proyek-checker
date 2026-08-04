@@ -14,8 +14,8 @@ class ApiService {
       defaultValue: '',
     );
 
-    if (definedBaseUrl.isNotEmpty) {
-      return definedBaseUrl;
+    if (definedBaseUrl.trim().isNotEmpty) {
+      return _normalizeBaseUrl(definedBaseUrl);
     }
 
     if (kReleaseMode) {
@@ -24,7 +24,16 @@ class ApiService {
       );
     }
 
-    return _devBaseUrl;
+    return _normalizeBaseUrl(_devBaseUrl);
+  }
+
+  static String _normalizeBaseUrl(String rawBaseUrl) {
+    final sanitized = rawBaseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    if (sanitized.endsWith('/api')) {
+      return sanitized;
+    }
+
+    return '$sanitized/api';
   }
 
   // Fungsi untuk mengambil data Beranda dari Laravel
