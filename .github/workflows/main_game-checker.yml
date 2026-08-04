@@ -79,10 +79,8 @@ jobs:
         uses: azure/cli@v1
         with:
           inlineScript: |
-            az webapp config appsettings set --name game-checker --resource-group rg-game-checker --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=true"
-            az webapp ssh -n game-checker -g rg-game-checker --startup-command "php artisan migrate --force"
-          # Perintah az webapp ssh --startup-command tidak akan mengembalikan output ke GitHub Actions secara langsung
-          # Untuk melihat output migrasi, Anda perlu memeriksa log Azure App Service atau SSH manual ke app service.
+            az webapp config appsettings set --name game-checker --resource-group rg-game-checker --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true
+            az webapp ssh -n game-checker -g rg-game-checker --command "php /home/site/wwwroot/artisan migrate --force"
         env:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_793E5F7AA6004712954E8DC17C157B2B }}
           AZURE_TENANT_ID: ${{ secrets.AZUREAPPSERVICE_TENANTID_06A8E081C08F47CD9F77B30DEA3EF954 }}
