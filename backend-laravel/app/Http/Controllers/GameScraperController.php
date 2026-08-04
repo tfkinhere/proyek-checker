@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Game;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class GameScraperController extends Controller
@@ -101,4 +103,153 @@ class GameScraperController extends Controller
             'message' => 'Game dengan App ID ' . $appId . ' belum ada di database.'
         ], 404);
     }
+
+    public function searchOrImport(Request $request)
+    {
+        $validated = $request->validate([
+            'query' => ['required', 'string', 'min:2', 'max:120'],
+        ]);
+
+        $query = trim($validated['query']);
+
+        $localResults = Game::query()
+            ->where('title', 'like', "%{$query}%")
+            ->orderBy('title')
+            ->limit(30)
+            ->get();
+
+        if ($localResults->isNotEmpty()) {
+            return response()->json([
+                'status' => 'success',
+                'source' => 'database',
+                'data' => $localResults->map(fn (Game $game) => $this->formatGame($game))->values(),
+            ]);
+        }
+
+        $steamApps = $this->searchSteamApps($query);
+
+        if ($steamApps === []) {
+            return response()->json([
+                'status' => 'success',
+                'source' => 'steam',
+                'data' => [],
+                'message' => 'Game tidak ditemukan di database lokal maupun Steam.',
+            ]);
+        }
+
+        $imported = collect($steamApps)
+            ->map(function (array $app) {
+                $appId = (int) ($app['appid'] ?? 0);
+                $name = trim((string) ($app['name'] ?? ''));
+                if ($appId <= 0 || $name === '') {
+                    return null;
+                }
+
+                $game = Game::updateOrCreate(
+                    ['steam_app_id' => (string) $appId],
+                    [
+                        'title' => $name,
+                        'banner_url' => "https://cdn.akamai.steamstatic.com/steam/apps/{$appId}/header.jpg",
+                        'min_specs' => ['ram' => null, 'storage' => null],
+                        'rec_specs' => ['ram' => null, 'storage' => null],
+                    ],
+                );
+
+                return $this->formatGame($game);
+            })
+            ->filter()
+            ->values();
+
+        return response()->json([
+            'status' => 'success',
+            'source' => 'steam',
+            'data' => $imported,
+        ]);
+    }
+
+    private function searchSteamApps(string $query): array
+    {
+        $userAgent = config('app.name', 'GameChecker').'/1.0';
+
+        $response = Http::acceptJson()
+            ->timeout(60)
+            ->retry(3, 1200, throw: false)
+            ->withHeaders([
+                'User-Agent' => $userAgent,
+            ])
+            ->get('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
+
+        if ($response->successful()) {
+            $apps = $response->json('applist.apps');
+            if (is_array($apps)) {
+                return $this->filterSteamApps($apps, $query);
+            }
+        }
+
+        Log::warning('Steam app list endpoint utama gagal saat hook pencarian, mencoba fallback.', [
+            'query' => $query,
+            'status' => $response->status(),
+        ]);
+
+        $fallback = Http::acceptJson()
+            ->timeout(30)
+            ->retry(2, 800)
+            ->withHeaders([
+                'User-Agent' => $userAgent,
+            ])
+            ->get('https://steamcommunity.com/actions/SearchApps/'.urlencode($query));
+
+        if (! $fallback->successful()) {
+            return [];
+        }
+
+        $apps = $fallback->json();
+        if (! is_array($apps)) {
+            return [];
+        }
+
+        return $this->filterSteamApps($apps, $query);
+    }
+
+    private function filterSteamApps(array $apps, string $query): array
+    {
+        $needle = mb_strtolower($query);
+
+        $matches = [];
+        foreach ($apps as $app) {
+            $name = trim((string) ($app['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            if (str_contains(mb_strtolower($name), $needle)) {
+                $matches[] = $app;
+            }
+
+            if (count($matches) >= 20) {
+                break;
+            }
+        }
+
+        return $matches;
+    }
+
+    private function formatGame(Game $game): array
+    {
+        return [
+            'id' => $game->id,
+            'title' => $game->title,
+            'steam_app_id' => $game->steam_app_id,
+            'banner_url' => $game->banner_url,
+            'min_specs' => $game->min_specs ?? [],
+            'rec_specs' => $game->rec_specs ?? [],
+            'min_os' => $game->min_os,
+            'min_cpu' => $game->min_cpu,
+            'min_gpu' => $game->min_gpu,
+            'rec_os' => $game->rec_os,
+            'rec_cpu' => $game->rec_cpu,
+            'rec_gpu' => $game->rec_gpu,
+        ];
+    }
 }
+

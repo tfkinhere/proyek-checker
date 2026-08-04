@@ -142,6 +142,41 @@ class ApiService {
     );
   }
 
+  static Future<List<dynamic>> searchOrImportGames(String query) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // Endpoint ini bisa dipakai tanpa auth kalau Anda mau.
+      // Tapi current server route menggunakan middleware throttle saja.
+    }
+
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/games/search').replace(
+            queryParameters: {'query': query},
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            // Firebase token tidak wajib untuk endpoint ini, tapi boleh.
+            if (user != null)
+              'Authorization': 'Bearer ${await user.getIdToken()}',
+          },
+        )
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode == 200) {
+      final decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic> && decoded['data'] is List) {
+        return decoded['data'] as List<dynamic>;
+      }
+      return [];
+    }
+
+    throw Exception(
+      _parseErrorMessage(response.body, 'Gagal mencari game di Steam.'),
+    );
+  }
+
   // Tambah game ke wishlist
   static Future<bool> addToWishlist(int gameId) async {
     try {

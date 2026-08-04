@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import '../services/api_service.dart';
+import '../utils/glass_snackbar.dart';
 import 'result_page.dart';
 
 class KatalogPage extends StatefulWidget {
@@ -38,6 +39,31 @@ class _KatalogPageState extends State<KatalogPage> {
     }
   }
 
+  Future<void> _searchFromSteam(String query) async {
+    if (query.trim().length < 2) {
+      setState(() => filteredGames = allGames);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final results = await ApiService.searchOrImportGames(query.trim());
+      if (!mounted) return;
+      setState(() {
+        filteredGames = results;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      GlassSnackBar.show(
+        context,
+        e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
+  }
+
   void _navigateToResult(BuildContext context, dynamic game) {
     final adapted = {
       'id': game['id'], // ✅ TAMBAH INI
@@ -68,17 +94,26 @@ class _KatalogPageState extends State<KatalogPage> {
 
   void _filterGames(String query) {
     if (query.isEmpty) {
-      setState(() => filteredGames = allGames);
-    } else {
       setState(() {
-        filteredGames = allGames
-            .where(
-              (game) => game['title'].toString().toLowerCase().contains(
-                query.toLowerCase(),
-              ),
-            )
-            .toList();
+        filteredGames = allGames;
       });
+      return;
+    }
+
+    final localMatches = allGames
+        .where(
+          (game) => game['title'].toString().toLowerCase().contains(
+            query.toLowerCase(),
+          ),
+        )
+        .toList();
+
+    setState(() {
+      filteredGames = localMatches;
+    });
+
+    if (localMatches.isEmpty && query.trim().length >= 2) {
+      _searchFromSteam(query);
     }
   }
 
@@ -213,7 +248,7 @@ class _KatalogPageState extends State<KatalogPage> {
                       game['banner_url'] ?? '',
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, __, _) => Container(
                         color: const Color(0xFF1E2336),
                         child: const Icon(
                           Icons.image_not_supported,

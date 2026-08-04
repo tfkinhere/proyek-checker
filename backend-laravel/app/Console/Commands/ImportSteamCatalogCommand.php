@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Game;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 class ImportSteamCatalogCommand extends Command
@@ -18,18 +19,8 @@ class ImportSteamCatalogCommand extends Command
 
         $this->info("Mengambil daftar aplikasi Steam (target: {$limit} game)...");
 
-        $response = Http::acceptJson()
-            ->timeout(40)
-            ->get('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
-
-        if (!$response->successful()) {
-            $this->error('Gagal mengambil app list dari Steam API.');
-            return self::FAILURE;
-        }
-
-        $apps = $response->json('applist.apps');
-        if (!is_array($apps)) {
-            $this->error('Format respons Steam API tidak valid.');
+        $apps = $this->fetchSteamApps();
+        if ($apps === null) {
             return self::FAILURE;
         }
 
@@ -67,4 +58,73 @@ class ImportSteamCatalogCommand extends Command
 
         return self::SUCCESS;
     }
+
+    private function fetchSteamApps(): ?Collection
+    {
+        $userAgent = (string) config('app.name', 'GameChecker').'/1.0';
+
+        $response = Http::acceptJson()
+            ->timeout(60)
+            ->retry(3, 1200, throw: false)
+            ->withHeaders([
+                'User-Agent' => $userAgent,
+            ])
+            ->get('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
+
+        if ($response->successful()) {
+            $apps = $response->json('applist.apps');
+            if (is_array($apps)) {
+                return collect($apps);
+            }
+        }
+
+        $this->warn('Endpoint utama Steam API gagal, mencoba fallback endpoint search...');
+
+        $seedQueries = ['a', 'e', 'i', 'o', 'u', 't', 's', 'r', 'n', 'm', 'c', 'd', 'l', 'p', 'g'];
+        $fallbackApps = collect();
+
+        foreach ($seedQueries as $seed) {
+            $fallback = Http::acceptJson()
+                ->timeout(30)
+                ->retry(2, 800, throw: false)
+                ->withHeaders([
+                    'User-Agent' => $userAgent,
+                ])
+                ->get('https://steamcommunity.com/actions/SearchApps/'.urlencode($seed));
+
+            if (! $fallback->successful()) {
+                continue;
+            }
+
+            $apps = $fallback->json();
+            if (! is_array($apps)) {
+                continue;
+            }
+
+            $fallbackApps = $fallbackApps
+                ->merge($apps)
+                ->filter(fn (array $app) => !empty($app['appid']) && trim((string) ($app['name'] ?? '')) !== '')
+                ->unique(fn (array $app) => (string) $app['appid'])
+                ->values();
+
+            if ($fallbackApps->count() >= 1200) {
+                break;
+            }
+        }
+
+        if ($fallbackApps->isNotEmpty()) {
+            return $fallbackApps
+                ->map(fn (array $app) => [
+                    'appid' => $app['appid'] ?? null,
+                    'name' => $app['name'] ?? '',
+                ])
+                ->values();
+        }
+
+        $status = $response->status();
+        $this->error("Gagal mengambil app list dari Steam API. HTTP status: {$status}");
+
+        return null;
+    }
 }
+

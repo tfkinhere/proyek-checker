@@ -283,6 +283,43 @@ public function removeWishlist(Request $request)
     ], 200);
 }
 
+    public function activeSpec(Request $request)
+    {
+        $user = $request->auth_user;
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User tidak ditemukan.',
+            ], 401);
+        }
+
+        $activeSpec = UserSpec::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->latest('id')
+            ->first();
+
+        if (!$activeSpec) {
+            return response()->json([
+                'status' => 'success',
+                'data' => null,
+                'message' => 'Belum ada spesifikasi aktif di server.',
+            ], 200);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'os' => $activeSpec->os,
+                'cpu' => $activeSpec->cpu,
+                'gpu' => $activeSpec->gpu,
+                'ram' => (int) $activeSpec->ram,
+                'storage' => (int) $activeSpec->storage,
+                'is_active' => (bool) $activeSpec->is_active,
+                'updated_at' => $activeSpec->updated_at?->toIso8601String(),
+            ],
+        ], 200);
+    }
+
     public function updateSpec(Request $request)
     {
         $validated = $request->validate([

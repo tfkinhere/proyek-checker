@@ -39,11 +39,13 @@ Route::get('/docs', function () {
 
 Route::post('/games/scrape-v2', [GameScraperController::class, 'storeV2'])->middleware('throttle:api-general');
 Route::post('/games/check', [GameScraperController::class, 'checkGame'])->middleware('throttle:api-general');
+Route::get('/games/search', [GameScraperController::class, 'searchOrImport'])->middleware('throttle:api-general');
 Route::get('/games/all', [HomeController::class, 'allGames'])->middleware('throttle:api-general');
 Route::get('/steam/callback', [SteamController::class, 'callback'])->middleware('throttle:steam-link');
 
 Route::middleware(['firebase.auth', 'throttle:api-general'])->group(function () {
     Route::get('/home', [HomeController::class, 'index']);
+    Route::get('/specs/active', [HomeController::class, 'activeSpec']);
     Route::post('/specs/update', [HomeController::class, 'updateSpec'])->middleware('throttle:wishlist-write');
     Route::post('/wishlist/add', [HomeController::class, 'addWishlist'])->middleware('throttle:wishlist-write');
     Route::delete('/wishlist/remove', [HomeController::class, 'removeWishlist'])->middleware('throttle:wishlist-write');
