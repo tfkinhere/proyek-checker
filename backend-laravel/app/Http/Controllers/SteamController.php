@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\SyncSteamWishlistJob;
 use App\Models\Game;
 use App\Models\User;
+use App\Services\SteamWishlistSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -128,12 +129,26 @@ class SteamController extends Controller
     }
 
     /** Sync a linked account's public Steam wishlist into Saved Content. */
-    public function getWishlist(Request $request)
+    public function getWishlist(Request $request, SteamWishlistSyncService $service)
     {
         $user = $request->auth_user;
         $steamId = $user->steam_id;
         if (!$steamId) {
             return response()->json(['status' => 'error', 'message' => 'Hubungkan akun Steam terlebih dahulu.'], 422);
+        }
+
+        $driver = (string) config('queue.default', 'sync');
+
+        if ($driver === 'sync') {
+            $result = $service->sync($user);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Wishlist Steam berhasil disinkronkan.',
+                'mode' => $result['mode'] ?? 'Saved',
+                'data' => $result['games'] ?? [],
+                'total_games' => $result['total_games'] ?? 0,
+            ], 200);
         }
 
         $syncToken = Str::random(64);
@@ -144,18 +159,20 @@ class SteamController extends Controller
             'queued_at' => now()->toIso8601String(),
         ], self::LINK_TTL_SECONDS);
 
-        SyncSteamWishlistJob::dispatch($user->id, $syncToken)->onQueue('steam-sync');
+        SyncSteamWishlistJob::dispatch($user->id, $syncToken);
 
         Log::info('Sinkronisasi wishlist Steam dimasukkan ke queue.', [
             'user_id' => $user->id,
             'steam_id' => $steamId,
             'sync_token' => $syncToken,
+            'queue_driver' => $driver,
         ]);
 
         return response()->json([
             'status' => 'queued',
             'message' => 'Sinkronisasi wishlist Steam sedang diproses di background.',
             'sync_token' => $syncToken,
+            'poll_interval_seconds' => 3,
         ], 202);
     }
 

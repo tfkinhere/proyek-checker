@@ -9,6 +9,7 @@ return [
 
     'steam' => [
         'public_url' => env('STEAM_PUBLIC_URL', env('APP_URL')),
+        'wishlist_max_pages' => env('STEAM_WISHLIST_MAX_PAGES', 8),
     ],
 
     /*

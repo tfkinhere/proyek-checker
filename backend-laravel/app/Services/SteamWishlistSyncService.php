@@ -18,22 +18,7 @@ class SteamWishlistSyncService
             throw new \RuntimeException('Hubungkan akun Steam terlebih dahulu.');
         }
 
-        $url = "https://store.steampowered.com/wishlist/profiles/{$steamId}/wishlistdata/?p=0";
-        $response = Http::acceptJson()->timeout(20)->get($url);
-
-        if ($response->status() === 403) {
-            throw new \RuntimeException('Profil Steam atau wishlist masih privat. Ubah ke Public lalu sinkronkan ulang.');
-        }
-
-        if ($response->status() === 429) {
-            throw new \RuntimeException('Permintaan ke Steam dibatasi sementara. Tunggu sebentar lalu coba lagi.');
-        }
-
-        $steamGames = $response->json();
-        if (!$response->successful() || !is_array($steamGames)) {
-            throw new \RuntimeException('Wishlist Steam tidak dapat diambil. Pastikan profil dan wishlist Steam bersifat Public.');
-        }
-
+        $steamGames = $this->fetchWishlistPages($steamId);
         $savedGames = [];
 
         DB::transaction(function () use ($steamGames, $user, &$savedGames) {
@@ -45,8 +30,10 @@ class SteamWishlistSyncService
                 $game = Game::updateOrCreate(
                     ['steam_app_id' => (string) $appId],
                     [
-                        'title' => $steamGame['name'],
-                        'banner_url' => $steamGame['capsule'] ?? $steamGame['header'] ?? "https://cdn.akamai.steamstatic.com/steam/apps/{$appId}/header.jpg",
+                        'title' => (string) $steamGame['name'],
+                        'banner_url' => $steamGame['capsule']
+                            ?? $steamGame['header']
+                            ?? "https://cdn.akamai.steamstatic.com/steam/apps/{$appId}/header.jpg",
                     ],
                 );
 
@@ -72,6 +59,42 @@ class SteamWishlistSyncService
         return [
             'mode' => 'Saved',
             'total_games' => count($savedGames),
+            'games' => $savedGames,
         ];
+    }
+
+    private function fetchWishlistPages(string $steamId): array
+    {
+        $maxPages = max(1, (int) config('services.steam.wishlist_max_pages', 8));
+        $collected = [];
+
+        for ($page = 0; $page < $maxPages; $page++) {
+            $response = Http::acceptJson()
+                ->timeout(20)
+                ->get("https://store.steampowered.com/wishlist/profiles/{$steamId}/wishlistdata/", ['p' => $page]);
+
+            if ($response->status() === 403) {
+                throw new \RuntimeException('Profil Steam atau wishlist masih privat. Ubah ke Public lalu sinkronkan ulang.');
+            }
+
+            if ($response->status() === 429) {
+                throw new \RuntimeException('Permintaan ke Steam dibatasi sementara. Tunggu sebentar lalu coba lagi.');
+            }
+
+            $payload = $response->json();
+            if (!$response->successful() || !is_array($payload)) {
+                throw new \RuntimeException('Wishlist Steam tidak dapat diambil. Pastikan profil dan wishlist Steam bersifat Public.');
+            }
+
+            if ($payload === []) {
+                break;
+            }
+
+            foreach ($payload as $appId => $steamGame) {
+                $collected[(string) $appId] = $steamGame;
+            }
+        }
+
+        return $collected;
     }
 }
