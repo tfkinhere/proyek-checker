@@ -50,16 +50,19 @@ class VerifyFirebaseToken
                     'email_verified_at' => now(),
                 ],
             );
+        } catch (FailedToVerifyToken) {
+            // FailedToVerifyToken extends RuntimeException, jadi HARUS ditangkap
+            // sebelum blok \RuntimeException di bawah — kalau tidak, token
+            // invalid/kedaluwarsa ikut jadi 503 (server error), bukan 401.
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Token Firebase tidak valid atau sudah kedaluwarsa.',
+            ], 401);
         } catch (\RuntimeException $exception) {
             return response()->json([
                 'status' => 'error',
                 'message' => $exception->getMessage(),
             ], 503);
-        } catch (FailedToVerifyToken) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Token Firebase tidak valid atau sudah kedaluwarsa.',
-            ], 401);
         } catch (\Throwable $exception) {
             report($exception);
             return response()->json([
