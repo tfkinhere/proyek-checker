@@ -5,6 +5,7 @@ import 'package:searchable_paginated_dropdown/searchable_paginated_dropdown.dart
 import '../theme/app_colors.dart';
 import '../utils/glass_snackbar.dart';
 import '../services/api_service.dart';
+import '../services/spec_refresh_notifier.dart';
 
 class ChangeSpecPage extends StatefulWidget {
   const ChangeSpecPage({super.key});
@@ -349,6 +350,8 @@ class _ChangeSpecPageState extends State<ChangeSpecPage> {
     });
 
     if (isServerSaved) {
+      // Beri tahu dashboard agar auto-refresh memakai spek terbaru.
+      SpecRefreshNotifier.notifyChanged();
       GlassSnackBar.show(context, 'Spesifikasi berhasil disimpan ke Database!');
       Navigator.pop(context, true);
     } else {

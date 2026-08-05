@@ -118,6 +118,42 @@ class ApiService {
     }
   }
 
+  /// GET /specs/active.
+  ///
+  /// Mengembalikan map spesifikasi bila user sudah punya spek aktif, atau
+  /// `null` bila user memang belum pernah mengisi spesifikasi. Melempar
+  /// exception saat gagal terhubung ke server, sehingga pemanggil bisa
+  /// membedakan "belum ada spek" (null) dari "gagal memeriksa" (throw).
+  static Future<Map<String, dynamic>?> fetchActiveSpec() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('User belum login ke Firebase.');
+
+    final token = await user.getIdToken();
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/specs/active'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 8));
+
+    if (response.statusCode == 200) {
+      final decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic> &&
+          decoded['data'] is Map<String, dynamic>) {
+        return decoded['data'] as Map<String, dynamic>;
+      }
+      return null; // data == null -> user belum punya spek aktif
+    }
+
+    throw Exception(
+      _parseErrorMessage(response.body, 'Gagal memeriksa spesifikasi aktif.'),
+    );
+  }
+
   static Future<List<dynamic>> fetchAllGames() async {
     final response = await http
         .get(
@@ -269,21 +305,5 @@ class ApiService {
     } catch (_) {}
 
     return fallbackMessage;
-  }
-
-  static Map<String, dynamic> _decodeObject(
-    http.Response response,
-    String fallbackMessage,
-  ) {
-    final dynamic decoded = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body);
-    if (response.statusCode >= 200 &&
-        response.statusCode < 300 &&
-        decoded is Map<String, dynamic>) {
-      return decoded;
-    }
-    final message = decoded is Map ? decoded['message']?.toString() : null;
-    throw Exception(message ?? fallbackMessage);
   }
 }
