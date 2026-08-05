@@ -51,12 +51,20 @@ def bersihkan_dengan_ai(raw_text: str) -> GameRequirementSchema:
 def kirim_ke_laravel(data_dict: dict, app_id: str):
     url_laravel = "http://127.0.0.1:8000/api/games/scrape-v2"
     print(f"Mengirim data JSON ke API Laravel: {url_laravel} ...")
-    
+
+    # App ID wajib dikirim: Laravel memakainya sebagai kunci updateOrCreate.
+    data_dict['app_id'] = app_id
     # Tambahkan nama game bayangan/dummy berdasarkan App ID untuk identifikasi di DB
     data_dict['game_name'] = f"Steam Game ID {app_id}"
-    
+
+    # Sertakan shared secret bila diset (wajib untuk endpoint production).
+    headers = {}
+    scraper_token = os.getenv("SCRAPER_TOKEN")
+    if scraper_token:
+        headers["X-Scraper-Token"] = scraper_token
+
     try:
-        response = requests.post(url_laravel, json=data_dict)
+        response = requests.post(url_laravel, json=data_dict, headers=headers)
         
         if response.status_code == 201:
             print("\n=============================================")

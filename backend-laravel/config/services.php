@@ -12,6 +12,12 @@ return [
         'wishlist_max_pages' => env('STEAM_WISHLIST_MAX_PAGES', 8),
     ],
 
+    'scraper' => [
+        // Shared secret untuk endpoint ingest data scraper Python.
+        // Kosongkan di lokal; wajib diisi di production agar endpoint terlindungi.
+        'token' => env('SCRAPER_TOKEN'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

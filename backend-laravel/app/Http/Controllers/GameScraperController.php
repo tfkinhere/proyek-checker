@@ -15,51 +15,59 @@ class GameScraperController extends Controller
     // ========================================================
     public function storeV2(Request $request)
     {
-        $request->validate([
+        // Lindungi endpoint ingest dengan shared secret bila SCRAPER_TOKEN diset.
+        // Di lokal token boleh kosong; di production wajib diisi.
+        $expectedToken = config('services.scraper.token');
+        if ($expectedToken && !hash_equals($expectedToken, (string) $request->header('X-Scraper-Token'))) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Token scraper tidak valid.',
+            ], 401);
+        }
+
+        $validated = $request->validate([
             'app_id' => 'required', // Validasi: Wajib kirim app_id
+            'game_name' => 'nullable|string|max:255',
             'minimum' => 'required|array',
-            'recommended' => 'required|array'
+            'recommended' => 'required|array',
         ]);
 
-        $appId = $request->input('app_id');
-        $minimum = $request->input('minimum');
-        $recommended = $request->input('recommended');
-        $gameName = $request->input('game_name', 'Unknown Game');
+        $appId = $validated['app_id'];
+        $minimum = $validated['minimum'];
+        $recommended = $validated['recommended'];
+        $gameName = $validated['game_name'] ?? 'Unknown Game';
 
-        DB::beginTransaction();
         try {
-            DB::table('games')->updateOrInsert([
-                'steam_app_id' => $appId,
-            ], [
-                'title' => $gameName,
-                'banner_url' => "https://cdn.akamai.steamstatic.com/steam/apps/{$appId}/header.jpg",
-                'min_specs' => json_encode([
-                    'ram' => $minimum['ram_gb'] ?? null,
-                    'storage' => $minimum['storage_gb'] ?? null,
-                ]),
-                'rec_specs' => json_encode([
-                    'ram' => $recommended['ram_gb'] ?? null,
-                    'storage' => $recommended['storage_gb'] ?? null,
-                ]),
-                'min_os' => $minimum['os'] ?? null,
-                'min_cpu' => implode(', ', $minimum['cpu'] ?? []),
-                'min_gpu' => implode(', ', $minimum['gpu'] ?? []),
-                
-                'rec_os' => $recommended['os'] ?? null,
-                'rec_cpu' => implode(', ', $recommended['cpu'] ?? []),
-                'rec_gpu' => implode(', ', $recommended['gpu'] ?? []),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            // Eloquent + cast 'array' meng-encode min_specs/rec_specs otomatis,
+            // konsisten dengan searchOrImport dan SteamWishlistSyncService.
+            Game::updateOrCreate(
+                ['steam_app_id' => (string) $appId],
+                [
+                    'title' => $gameName,
+                    'banner_url' => "https://cdn.akamai.steamstatic.com/steam/apps/{$appId}/header.jpg",
+                    'min_specs' => [
+                        'ram' => $minimum['ram_gb'] ?? null,
+                        'storage' => $minimum['storage_gb'] ?? null,
+                    ],
+                    'rec_specs' => [
+                        'ram' => $recommended['ram_gb'] ?? null,
+                        'storage' => $recommended['storage_gb'] ?? null,
+                    ],
+                    'min_os' => $minimum['os'] ?? null,
+                    'min_cpu' => implode(', ', $minimum['cpu'] ?? []),
+                    'min_gpu' => implode(', ', $minimum['gpu'] ?? []),
+                    'rec_os' => $recommended['os'] ?? null,
+                    'rec_cpu' => implode(', ', $recommended['cpu'] ?? []),
+                    'rec_gpu' => implode(', ', $recommended['gpu'] ?? []),
+                ],
+            );
 
-            DB::commit();
             return response()->json([
                 'status' => 'success',
                 'message' => 'Data spesifikasi game berhasil disimpan ke database MySQL!'
             ], 201);
 
-        } catch (\Exception $e) {
-            DB::rollBack();
+        } catch (\Throwable $e) {
             Log::error('Gagal menyimpan data scraper: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
