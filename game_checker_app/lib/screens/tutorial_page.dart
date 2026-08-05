@@ -67,10 +67,10 @@ class TutorialPage extends StatelessWidget {
           // Langkah 2
           _buildStepCard(
             stepNumber: '2',
-            title: 'Hubungkan Akun Steam',
+            title: 'Jelajahi Katalog Game',
             description:
-                'Di menu Profil, klik "Connect Steam Wishlist". Aplikasi akan membuka halaman Steam resmi, lalu kembali ke aplikasi setelah akun diverifikasi. Pastikan profil dan wishlist Steam-mu berstatus Public.',
-            icon: Icons.link_rounded,
+                'Buka menu Katalog untuk menelusuri daftar game. Gunakan kolom pencarian untuk mencari judul tertentu langsung dari Steam.',
+            icon: Icons.sports_esports_outlined,
             iconColor: Colors.blueAccent,
           ),
           const SizedBox(height: 16),
@@ -78,9 +78,9 @@ class TutorialPage extends StatelessWidget {
           // Langkah 3
           _buildStepCard(
             stepNumber: '3',
-            title: 'Buka Saved Content',
+            title: 'Simpan Game Favoritmu',
             description:
-                'Setelah tersinkronisasi, sistem akan menyedot wishlist game-mu. Buka menu "Saved Content" untuk melihat daftar game yang sudah siap dianalisa.',
+                'Pada halaman Detail game, klik "Simpan" untuk menandai game. Semua game yang kamu simpan akan muncul di menu Profil > "Saved Content".',
             icon: Icons.bookmark_border_rounded,
             iconColor: Colors.amberAccent,
           ),

@@ -1,11 +1,9 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 // image_picker sudah dihapus dari sini karena diurus oleh edit_profile_page
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_colors.dart';
 import 'wishlist_result_page.dart';
 import 'edit_profile_page.dart';
@@ -24,13 +22,9 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   File? _profileImage;
-  bool _isSteamConnected = false;
-  bool _isLoadingWishlist = false;
   late final VoidCallback _wishlistRefreshListener;
 
-  List<dynamic> _cachedWishlist = [];
   List<dynamic> _savedGames = [];
-  String _cachedMode = 'Sandbox';
 
   @override
   void initState() {
@@ -61,29 +55,6 @@ class _ProfilePageState extends State<ProfilePage> {
     if (savedPath != null && File(savedPath).existsSync()) {
       if (mounted) setState(() => _profileImage = File(savedPath));
     }
-
-    try {
-      final connected = await ApiService.fetchSteamConnectionStatus();
-      if (mounted) setState(() => _isSteamConnected = connected);
-    } catch (error) {
-      debugPrint('Gagal membaca status Steam: $error');
-    }
-
-    final savedWishlistJson = prefs.getString('cached_wishlist_${user.uid}');
-    final savedMode = prefs.getString('cached_mode_${user.uid}');
-    if (savedWishlistJson != null) {
-      try {
-        final decodedList = jsonDecode(savedWishlistJson);
-        if (mounted) {
-          setState(() {
-            _cachedWishlist = decodedList;
-            _cachedMode = savedMode ?? 'Sandbox';
-          });
-        }
-      } catch (e) {
-        debugPrint('Gagal membaca cache wishlist: $e');
-      }
-    }
   }
 
   Future<void> _loadSavedGames() async {
@@ -93,195 +64,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _connectOrSyncSteam() async {
-    if (_isSteamConnected) {
-      await _syncSteamWishlist();
-      return;
-    }
-
-    setState(() => _isLoadingWishlist = true);
-    try {
-      final link = await ApiService.startSteamLink();
-      final authorizationUrl = Uri.parse(link['authorization_url'] as String);
-      final linkToken = link['link_token'] as String;
-      if (!await launchUrl(
-        authorizationUrl,
-        mode: LaunchMode.externalApplication,
-      )) {
-        throw Exception('Browser tidak dapat dibuka.');
-      }
-      if (!mounted) return;
-      GlassSnackBar.show(
-        context,
-        'Selesaikan login di Steam. Aplikasi akan memeriksa koneksi secara otomatis.',
-      );
-      await _waitForSteamLink(linkToken);
-    } catch (error) {
-      if (mounted) {
-        GlassSnackBar.show(
-          context,
-          error.toString().replaceFirst('Exception: ', ''),
-          isError: true,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoadingWishlist = false);
-    }
-  }
-
-  Future<void> _waitForSteamLink(String linkToken) async {
-    for (var attempt = 0; attempt < 40 && mounted; attempt++) {
-      await Future<void>.delayed(const Duration(seconds: 3));
-      try {
-        final status = await ApiService.fetchSteamLinkStatus(linkToken);
-        if (!mounted) return;
-        if (status['connected'] == true) {
-          setState(() => _isSteamConnected = true);
-          GlassSnackBar.show(context, 'Akun Steam berhasil terhubung.');
-          await _syncSteamWishlist();
-          return;
-        }
-      } catch (_) {
-        break;
-      }
-    }
-    if (mounted) {
-      GlassSnackBar.show(
-        context,
-        'Koneksi belum selesai. Ketuk Connect Steam lagi untuk mencoba ulang.',
-        isWarning: true,
-      );
-    }
-  }
-
-  Future<void> _syncSteamWishlist() async {
-    setState(() => _isLoadingWishlist = true);
-    try {
-      final responseData = await ApiService.syncSteamWishlist();
-      final status = responseData['status']?.toString() ?? 'queued';
-      final syncToken = responseData['sync_token']?.toString();
-
-      if (status == 'queued') {
-        if (syncToken == null || syncToken.isEmpty) {
-          throw Exception('Token sinkronisasi wishlist tidak ditemukan.');
-        }
-        await _waitForSteamWishlistSync(syncToken);
-        return;
-      }
-
-      if (responseData['data'] is List) {
-        final gamesData = responseData['data'] as List<dynamic>;
-        final modeInfo = responseData['mode']?.toString() ?? 'Saved';
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(
-            'cached_wishlist_${user.uid}',
-            jsonEncode(gamesData),
-          );
-          await prefs.setString('cached_mode_${user.uid}', modeInfo);
-        }
-        if (!mounted) return;
-        setState(() {
-          _cachedWishlist = gamesData;
-          _cachedMode = modeInfo;
-        });
-        await _loadSavedGames();
-        GlassSnackBar.show(context, 'Wishlist Steam berhasil disinkronkan.');
-        _openWishlistPage(gamesData, modeInfo);
-        return;
-      }
-
-      throw Exception(
-        responseData['message']?.toString() ??
-            'Respons wishlist dari server tidak valid.',
-      );
-    } catch (error) {
-      if (mounted) {
-        GlassSnackBar.show(
-          context,
-          error.toString().replaceFirst('Exception: ', ''),
-          isError: true,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoadingWishlist = false);
-    }
-  }
-
-  Future<void> _waitForSteamWishlistSync(String syncToken) async {
-    for (var attempt = 0; attempt < 20 && mounted; attempt++) {
-      await Future<void>.delayed(const Duration(seconds: 3));
-      try {
-        final status = await ApiService.fetchSteamWishlistSyncStatus(syncToken);
-        final syncData = status['data'] is Map<String, dynamic>
-            ? status['data'] as Map<String, dynamic>
-            : null;
-        final syncStatus = syncData?['status']?.toString() ?? '';
-
-        if (syncStatus == 'completed') {
-          final refreshedGames = await ApiService.fetchSavedGames();
-          if (!mounted) return;
-          setState(() {
-            _savedGames = refreshedGames;
-            _cachedWishlist = refreshedGames;
-            _cachedMode = 'Saved';
-          });
-          final user = FirebaseAuth.instance.currentUser;
-          if (user != null) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString(
-              'cached_wishlist_${user.uid}',
-              jsonEncode(refreshedGames),
-            );
-            await prefs.setString('cached_mode_${user.uid}', 'Saved');
-          }
-          GlassSnackBar.show(context, 'Wishlist Steam berhasil disinkronkan.');
-          _openWishlistPage(refreshedGames, 'Saved');
-          return;
-        }
-
-        if (syncStatus == 'failed') {
-          throw Exception(
-            syncData?['message']?.toString() ??
-                'Sinkronisasi wishlist Steam gagal.',
-          );
-        }
-      } catch (error) {
-        if (mounted) {
-          GlassSnackBar.show(
-            context,
-            error.toString().replaceFirst('Exception: ', ''),
-            isError: true,
-          );
-        }
-        return;
-      }
-    }
-
-    if (mounted) {
-      GlassSnackBar.show(
-        context,
-        'Sinkronisasi masih berjalan. Coba lagi beberapa saat.',
-        isWarning: true,
-      );
-    }
-  }
-
-  // FUNGSI YANG SEBELUMNYA TIDAK SENGAJA TERHAPUS
-  void _openWishlistPage(List<dynamic> games, String mode) {
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            WishlistResultPage(wishlistGames: games, mode: mode),
-      ),
-    );
-  }
-
   Future<void> _openSavedContent() async {
-    if (_savedGames.isEmpty) {
+    // Fetch saved games fresh to avoid race condition with async initState
+    final freshSavedGames = await ApiService.fetchSavedGames();
+    if (!mounted) return;
+
+    if (freshSavedGames.isEmpty) {
       GlassSnackBar.show(
         context,
         'Belum ada game tersimpan. Bookmark game dari halaman Detail!',
@@ -289,88 +77,16 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       return;
     }
+
+    setState(() => _savedGames = freshSavedGames);
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) =>
-            WishlistResultPage(wishlistGames: _savedGames, mode: 'Saved'),
+            WishlistResultPage(wishlistGames: freshSavedGames, mode: 'Saved'),
       ),
     );
     _loadSavedGames();
-  }
-
-  Future<void> _unlinkSteam() async {
-    final user = FirebaseAuth.instance.currentUser;
-    try {
-      await ApiService.unlinkSteam();
-      if (user != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('cached_wishlist_${user.uid}');
-        await prefs.remove('cached_mode_${user.uid}');
-      }
-      if (!mounted) return;
-      setState(() {
-        _isSteamConnected = false;
-        _cachedWishlist = [];
-        _cachedMode = 'Sandbox';
-      });
-      GlassSnackBar.show(
-        context,
-        'Koneksi akun Steam diputuskan.',
-        isWarning: true,
-      );
-    } catch (error) {
-      if (mounted) {
-        GlassSnackBar.show(
-          context,
-          error.toString().replaceFirst('Exception: ', ''),
-          isError: true,
-        );
-      }
-    }
-  }
-
-  void _showDisconnectSteamDialog() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.bottomNav,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(
-          'Putuskan Steam Wishlist?',
-          style: GoogleFonts.figtree(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Text(
-          'Koneksi Steam akan dihapus dari akun Anda. Saved Content tidak akan dihapus.',
-          style: GoogleFonts.figtree(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.figtree(color: Colors.white70),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              await _unlinkSteam();
-            },
-            child: Text(
-              'Putuskan',
-              style: GoogleFonts.figtree(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showPrivacyPolicyDialog() {
@@ -388,7 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         content: Text(
-          '1. Pengumpulan Data: Kami menyimpan identitas akun Google dan SteamID yang telah diverifikasi untuk keperluan wishlist.\n\n2. Data Steam: Wishlist hanya dapat disinkronkan bila profil dan wishlist Steam bersifat Public.\n\n3. Keamanan: Login Google dikelola Firebase Authentication; login Steam dilakukan di halaman Steam resmi melalui OpenID.',
+          '1. Pengumpulan Data: Kami menyimpan identitas akun Google yang telah diverifikasi untuk keperluan Saved Content.\n\n2. Spesifikasi: Data spesifikasi PC/Laptop yang Anda masukkan hanya dipakai untuk mengevaluasi kelayakan game.\n\n3. Keamanan: Login Google dikelola oleh Firebase Authentication.',
           style: GoogleFonts.figtree(
             color: AppColors.textSecondary,
             fontSize: 13,
@@ -603,32 +319,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildDivider(),
 
                         _buildMenuItem(
-                          Icons.sports_esports_outlined,
-                          _isSteamConnected
-                              ? 'Steam Wishlist (Connected)'
-                              : 'Connect Steam',
-                          trailingText: _isSteamConnected
-                              ? 'Sync Now'
-                              : 'Connect',
-                          trailingColor: _isSteamConnected
-                              ? const Color(0xFF4EE2C0)
-                              : Colors.blueAccent,
-                          isLoading: _isLoadingWishlist,
-                          onTap: _connectOrSyncSteam,
-                          onLongPress: _isSteamConnected ? _unlinkSteam : null,
-                        ),
-                        if (_isSteamConnected) ...[
-                          _buildDivider(),
-                          _buildMenuItem(
-                            Icons.link_off_rounded,
-                            'Putuskan Steam Wishlist',
-                            isDestructive: true,
-                            onTap: _showDisconnectSteamDialog,
-                          ),
-                        ],
-                        _buildDivider(),
-
-                        _buildMenuItem(
                           Icons.memory_outlined,
                           'Change Specification (PC/Laptop)',
                           onTap: () => Navigator.push(
@@ -707,15 +397,10 @@ class _ProfilePageState extends State<ProfilePage> {
     IconData icon,
     String title, {
     VoidCallback? onTap,
-    VoidCallback? onLongPress,
     bool isDestructive = false,
-    String? trailingText,
-    Color? trailingColor,
-    bool isLoading = false,
   }) {
     return InkWell(
       onTap: onTap,
-      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -737,31 +422,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
             ),
-            if (isLoading)
-              const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.blueAccent,
-                ),
-              )
-            else if (trailingText != null) ...[
-              Text(
-                trailingText,
-                style: GoogleFonts.figtree(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: trailingColor,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.white30,
-                size: 14,
-              ),
-            ] else if (!isDestructive)
+            if (!isDestructive)
               const Icon(
                 Icons.arrow_forward_ios_rounded,
                 color: Colors.white30,
