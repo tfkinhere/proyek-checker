@@ -1,6 +1,14 @@
 #!/bin/sh
 set -e
 
+# Jalankan migrasi database saat container start (idempoten: migrasi yang
+# sudah pernah jalan otomatis di-skip). Ini yang membuat kolom baru seperti
+# spec_source muncul di production tanpa perlu langkah manual.
+# Tidak boleh menggagalkan boot bila DB sementara tak terjangkau, jadi
+# error di-tangkap agar nginx tetap naik.
+cd /home/site/wwwroot
+php artisan migrate --force || echo "[startup] migrate dilewati/gagal, lanjut boot nginx"
+
 # Override konfigurasi nginx bawaan Azure App Service agar semua request
 # yang bukan file fisik diteruskan ke Laravel (public/index.php).
 cat > /etc/nginx/sites-enabled/default <<'EOF'

@@ -32,20 +32,28 @@ HEADERS = {"User-Agent": "GameChecker/1.0 (spec backfill)"}
 
 
 def _angka_gb(teks: str):
-    m = re.search(r"(\d+)\s*GB", teks, re.IGNORECASE)
-    return int(m.group(1)) if m else None
+    """Ekstrak angka GB dengan toleransi format berbeda (8GB, 8 GB, 8.5 GB)"""
+    m = re.search(r"(\d+(?:\.\d+)?)\s*GB", teks, re.IGNORECASE)
+    return int(float(m.group(1))) if m else None
 
 
 def _pisah_daftar(teks: str) -> list[str]:
-    bagian = re.split(r"\s+or\s+|,|/|\bor\b", teks, flags=re.IGNORECASE)
-    hasil = [b.strip(" .;") for b in bagian if b.strip(" .;")]
-    return hasil[:6]
+    """Pisah teks jadi list CPU/GPU, toleran terhadap format berbeda"""
+    # Bersihkan HTML entities yang lolos
+    teks = teks.replace('&nbsp;', ' ').replace('&amp;', '&')
+    # Split by "or", koma, slash, atau "/"
+    bagian = re.split(r'\s+or\s+|,|/|\bor\b', teks, flags=re.IGNORECASE)
+    hasil = [b.strip(" .;()") for b in bagian if b.strip(" .;()")]
+    return hasil[:6]  # Max 6 items untuk hindari noise
 
 
 def parse_requirements(raw_html: str) -> dict:
+    """Parse pc_requirements HTML dengan toleransi lebih tinggi terhadap variasi format"""
     spec = {"os": None, "cpu": [], "ram_gb": None, "gpu": [], "storage_gb": None}
     if not raw_html:
         return spec
+
+    # Ekstrak semua <li> items
     for li in re.findall(r"<li>(.*?)</li>", raw_html, re.IGNORECASE | re.DOTALL):
         teks = html_lib.unescape(re.sub(r"<[^>]+>", " ", li)).strip()
         if ":" not in teks:
@@ -55,16 +63,56 @@ def parse_requirements(raw_html: str) -> dict:
         value = re.sub(r"\s+", " ", value).strip()
         if not value:
             continue
-        if "os" in label and spec["os"] is None:
+
+        # OS - cari label yang mengandung "os" atau "operating system"
+        if ("os" in label or "operating" in label) and spec["os"] is None:
             spec["os"] = value
+
+        # CPU - cari "processor", "cpu"
         elif ("processor" in label or "cpu" in label) and not spec["cpu"]:
             spec["cpu"] = _pisah_daftar(value)
-        elif "memory" in label and spec["ram_gb"] is None:
+
+        # RAM/Memory - cari "memory", "ram"
+        elif ("memory" in label or "ram" in label) and spec["ram_gb"] is None:
             spec["ram_gb"] = _angka_gb(value)
+
+        # GPU - cari "graphics", "video", "gpu", "video card"
         elif ("graphics" in label or "video" in label or "gpu" in label) and not spec["gpu"]:
             spec["gpu"] = _pisah_daftar(value)
-        elif ("storage" in label or "hard drive" in label or "hard disk" in label) and spec["storage_gb"] is None:
+
+        # Storage - cari "storage", "hard drive", "hard disk", "hdd", "available space"
+        elif ("storage" in label or "hard drive" in label or "hard disk" in label or
+              "hdd" in label or "available space" in label) and spec["storage_gb"] is None:
             spec["storage_gb"] = _angka_gb(value)
+
+    # FALLBACK: bila format tidak pakai <li> (mis. blok <p> atau teks polos),
+    # coba tangkap label:value langsung dari teks bersih. Banyak game lama /
+    # indie menulis requirements tanpa struktur list.
+    if spec["ram_gb"] is None and spec["storage_gb"] is None:
+        teks_bersih = html_lib.unescape(re.sub(r"<[^>]+>", " ", raw_html))
+        teks_bersih = re.sub(r"\s+", " ", teks_bersih)
+
+        if spec["os"] is None:
+            m = re.search(r"OS\s*\*?\s*:\s*([^,;]+?)(?=\s+(?:Processor|CPU|Memory|RAM|Graphics|Video|Storage|Hard|DirectX|Sound)\s*:|$)", teks_bersih, re.IGNORECASE)
+            if m:
+                spec["os"] = m.group(1).strip()
+        if not spec["cpu"]:
+            m = re.search(r"(?:Processor|CPU)\s*:\s*(.+?)(?=\s+(?:Memory|RAM|Graphics|Video|Storage|Hard|DirectX|Sound|OS)\s*:|$)", teks_bersih, re.IGNORECASE)
+            if m:
+                spec["cpu"] = _pisah_daftar(m.group(1).strip())
+        if spec["ram_gb"] is None:
+            m = re.search(r"(?:Memory|RAM)\s*:\s*([^:]*?GB[^:]*?)(?=\s+\w+\s*:|$)", teks_bersih, re.IGNORECASE)
+            if m:
+                spec["ram_gb"] = _angka_gb(m.group(1))
+        if not spec["gpu"]:
+            m = re.search(r"(?:Graphics|Video)\s*:\s*(.+?)(?=\s+(?:Memory|RAM|Storage|Hard|DirectX|Sound|OS|Processor|CPU)\s*:|$)", teks_bersih, re.IGNORECASE)
+            if m:
+                spec["gpu"] = _pisah_daftar(m.group(1).strip())
+        if spec["storage_gb"] is None:
+            m = re.search(r"(?:Storage|Hard Drive|Hard Disk|HDD)\s*:\s*([^:]*?GB[^:]*?)(?=\s+\w+\s*:|$)", teks_bersih, re.IGNORECASE)
+            if m:
+                spec["storage_gb"] = _angka_gb(m.group(1))
+
     return spec
 
 
@@ -106,6 +154,7 @@ def kirim(appid: str, nama: str, minimum: dict, recommended: dict) -> bool:
         "game_name": nama,
         "minimum": minimum,
         "recommended": recommended,
+        "spec_source": "steam",  # Tandai bahwa data berasal dari Steam
     }
     headers = dict(HEADERS)
     token = os.getenv("SCRAPER_TOKEN")

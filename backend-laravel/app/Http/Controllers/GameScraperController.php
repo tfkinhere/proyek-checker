@@ -30,12 +30,14 @@ class GameScraperController extends Controller
             'game_name' => 'nullable|string|max:255',
             'minimum' => 'required|array',
             'recommended' => 'required|array',
+            'spec_source' => 'nullable|string|max:32',
         ]);
 
         $appId = $validated['app_id'];
         $minimum = $validated['minimum'];
         $recommended = $validated['recommended'];
         $gameName = $validated['game_name'] ?? 'Unknown Game';
+        $specSource = $validated['spec_source'] ?? 'steam';
 
         try {
             // Eloquent + cast 'array' meng-encode min_specs/rec_specs otomatis,
@@ -59,6 +61,7 @@ class GameScraperController extends Controller
                     'rec_os' => $recommended['os'] ?? null,
                     'rec_cpu' => implode(', ', $recommended['cpu'] ?? []),
                     'rec_gpu' => implode(', ', $recommended['gpu'] ?? []),
+                    'spec_source' => $specSource,
                 ],
             );
 

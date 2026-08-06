@@ -22,6 +22,7 @@ class Game extends Model
     'rec_os',   // ✅ tambah
     'rec_cpu',  // ✅ tambah
     'rec_gpu',  // ✅ tambah
+    'spec_source', // sumber data spec: steam / igdb
 ];
 
 protected $casts = [
