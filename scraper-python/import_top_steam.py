@@ -1,5 +1,5 @@
 """
-Importer katalog awal dari Steam ASLI (bukan data lokal/buatan).
+Importer katalog dari Steam ASLI (bukan data lokal/buatan).
 
 Alur:
   1. Ambil daftar game TERPOPULER dari Steam Charts (GetMostPlayedGames) -> terurut by peak players.
@@ -7,15 +7,18 @@ Alur:
   3. Parse HTML pc_requirements menjadi os/cpu/gpu/ram_gb/storage_gb.
   4. Kirim ke endpoint Laravel /api/games/scrape-v2 (updateOrCreate by steam_app_id).
 
+Parser & pembacaan token dipakai ulang dari backfill_specs.py supaya konsisten
+(termasuk fallback format non-<li> dan dukungan desimal GB).
+
 Pakai: python import_top_steam.py [jumlah]
-  contoh: python import_top_steam.py 25
+  contoh: python import_top_steam.py 100   (default 25)
 """
 
 import sys
-import re
 import time
-import html as html_lib
 import requests
+
+from backfill_specs import parse_requirements, _baca_token
 
 # Endpoint production (Azure). Ganti via argumen ke-2 bila perlu.
 LARAVEL_URL = "https://game-checker-bqhhhae0b3b4dca3.eastasia-01.azurewebsites.net/api/games/scrape-v2"
@@ -31,50 +34,6 @@ def ambil_top_appids(jumlah: int) -> list[int]:
     r.raise_for_status()
     ranks = r.json()["response"]["ranks"]
     return [row["appid"] for row in ranks[:jumlah]]
-
-
-def _angka_gb(teks: str):
-    """Ambil angka GB pertama dari teks, contoh '8 GB RAM' -> 8."""
-    m = re.search(r"(\d+)\s*GB", teks, re.IGNORECASE)
-    return int(m.group(1)) if m else None
-
-
-def _pisah_daftar(teks: str) -> list[str]:
-    """Pecah string cpu/gpu jadi list, buang bagian kosong."""
-    bagian = re.split(r"\s+or\s+|,|/|\bor\b", teks, flags=re.IGNORECASE)
-    hasil = [b.strip(" .;") for b in bagian if b.strip(" .;")]
-    return hasil[:6]
-
-
-def parse_requirements(raw_html: str) -> dict:
-    """Ubah HTML pc_requirements Steam jadi dict os/cpu/ram_gb/gpu/storage_gb."""
-    spec = {"os": None, "cpu": [], "ram_gb": None, "gpu": [], "storage_gb": None}
-    if not raw_html:
-        return spec
-
-    # Ambil tiap butir <li>Label: Value</li>
-    for li in re.findall(r"<li>(.*?)</li>", raw_html, re.IGNORECASE | re.DOTALL):
-        teks = html_lib.unescape(re.sub(r"<[^>]+>", " ", li)).strip()
-        if ":" not in teks:
-            continue
-        label, _, value = teks.partition(":")
-        label = label.strip().lower()
-        value = re.sub(r"\s+", " ", value).strip()
-        if not value:
-            continue
-
-        if "os" in label and spec["os"] is None:
-            spec["os"] = value
-        elif ("processor" in label or "cpu" in label) and not spec["cpu"]:
-            spec["cpu"] = _pisah_daftar(value)
-        elif "memory" in label and spec["ram_gb"] is None:
-            spec["ram_gb"] = _angka_gb(value)
-        elif ("graphics" in label or "video" in label or "gpu" in label) and not spec["gpu"]:
-            spec["gpu"] = _pisah_daftar(value)
-        elif ("storage" in label or "hard drive" in label or "hard disk" in label) and spec["storage_gb"] is None:
-            spec["storage_gb"] = _angka_gb(value)
-
-    return spec
 
 
 def ambil_detail(appid: int) -> dict | None:
@@ -106,7 +65,12 @@ def ambil_detail(appid: int) -> dict | None:
 
 
 def kirim(payload: dict) -> bool:
-    r = requests.post(LARAVEL_URL, json=payload, headers=HEADERS, timeout=30)
+    headers = dict(HEADERS)
+    token = _baca_token()
+    if token:
+        headers["X-Scraper-Token"] = token
+    payload["spec_source"] = "steam"  # Tandai sumber data spec
+    r = requests.post(LARAVEL_URL, json=payload, headers=headers, timeout=30)
     return r.status_code == 201
 
 
@@ -116,10 +80,12 @@ def main():
 
     appids = ambil_top_appids(jumlah)
     sukses = 0
+    dilewati = 0
     for i, appid in enumerate(appids, 1):
         detail = ambil_detail(appid)
         if detail is None:
             print(f"[{i}/{len(appids)}] appid {appid}: dilewati (bukan game / tanpa detail)")
+            dilewati += 1
             continue
 
         ok = kirim(detail)
@@ -128,9 +94,11 @@ def main():
         print(f"[{i}/{len(appids)}] {detail['game_name'][:40]:40} | RAM min {detail['minimum']['ram_gb']}GB | CPU {min_c[:30]} -> {status}")
         if ok:
             sukses += 1
+        else:
+            dilewati += 1
         time.sleep(1.2)  # sopan ke Steam API
 
-    print(f"\nSelesai. {sukses}/{len(appids)} game asli Steam tersimpan ke database production.")
+    print(f"\nSelesai. {sukses}/{len(appids)} game tersimpan, {dilewati} dilewati.")
 
 
 if __name__ == "__main__":
