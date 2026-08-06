@@ -80,6 +80,50 @@ class GameScraperController extends Controller
     }
 
     // ========================================================
+    // 1b. PINTU HAPUS: FAIL-CLOSED (wajib SCRAPER_TOKEN)
+    // ========================================================
+    public function destroy(Request $request)
+    {
+        // FAIL-CLOSED: bila SCRAPER_TOKEN belum di-set di production,
+        // endpoint ini DITOLAK (tidak boleh menghapus data tanpa kunci).
+        // Berbeda dengan storeV2 yang fail-open saat token kosong.
+        $expectedToken = config('services.scraper.token');
+        if (!$expectedToken) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Endpoint hapus dinonaktifkan: SCRAPER_TOKEN belum dikonfigurasi.',
+            ], 503);
+        }
+
+        if (!hash_equals($expectedToken, (string) $request->header('X-Scraper-Token'))) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Token scraper tidak valid.',
+            ], 401);
+        }
+
+        $validated = $request->validate([
+            'app_id' => 'required|string|max:32',
+        ]);
+
+        $appId = $validated['app_id'];
+
+        $deleted = Game::where('steam_app_id', $appId)->delete();
+
+        if (!$deleted) {
+            return response()->json([
+                'status' => 'error',
+                'message' => "Game dengan app_id {$appId} tidak ditemukan.",
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Game dengan app_id {$appId} berhasil dihapus.",
+        ], 200);
+    }
+
+    // ========================================================
     // 2. PINTU OUTPUT: KHUSUS UNTUK APLIKASI FLUTTER
     // ========================================================
     public function checkGame(Request $request)

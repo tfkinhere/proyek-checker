@@ -148,6 +148,21 @@ def perlu_backfill(game: dict) -> bool:
     return ms.get("ram") in (None, 0) and ms.get("storage") in (None, 0)
 
 
+def _baca_token() -> str | None:
+    """Token dibaca dari env SCRAPER_TOKEN, lalu fallback ke file scraper_token.txt
+    (di folder yang sama dengan skrip ini). File ini TIDAK di-commit ke git."""
+    token = os.getenv("SCRAPER_TOKEN")
+    if token:
+        return token.strip()
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scraper_token.txt")
+    try:
+        with open(path, encoding="utf-8") as f:
+            token = f.read().strip()
+        return token or None
+    except FileNotFoundError:
+        return None
+
+
 def kirim(appid: str, nama: str, minimum: dict, recommended: dict) -> bool:
     payload = {
         "app_id": appid,
@@ -157,7 +172,7 @@ def kirim(appid: str, nama: str, minimum: dict, recommended: dict) -> bool:
         "spec_source": "steam",  # Tandai bahwa data berasal dari Steam
     }
     headers = dict(HEADERS)
-    token = os.getenv("SCRAPER_TOKEN")
+    token = _baca_token()
     if token:
         headers["X-Scraper-Token"] = token
     r = requests.post(SCRAPE_URL, json=payload, headers=headers, timeout=30)

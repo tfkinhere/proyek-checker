@@ -6,6 +6,22 @@ REM ================================================================
 
 cd /d "%~dp0"
 
+REM --- Pastikan file token lokal ada (scraper_token.txt) ---
+REM Token TIDAK ditaruh di file ini (file ini ada di repo publik).
+REM Cukup buat file scraper_token.txt di folder yang sama berisi nilai
+REM SCRAPER_TOKEN dari Azure Portal > game-checker > Environment variables.
+REM Nanti dibaca otomatis oleh backfill_specs.py.
+if not exist "scraper_token.txt" (
+    echo.
+    echo [PERINGATAN] File scraper_token.txt tidak ditemukan!
+    echo.
+    echo Cara: buat file scraper-python\scraper_token.txt lalu isi dengan
+    echo nilai SCRAPER_TOKEN dari Azure (tanpa spasi / baris baru).
+    echo.
+    pause
+    exit /b 1
+)
+
 echo.
 echo ========================================
 echo  GAME SPEC AUTO-SCRAPER

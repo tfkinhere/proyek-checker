@@ -31,6 +31,7 @@ Route::get('/docs', function () {
 })->middleware('throttle:api-general');
 
 Route::post('/games/scrape-v2', [GameScraperController::class, 'storeV2'])->middleware('throttle:api-general');
+Route::delete('/games', [GameScraperController::class, 'destroy'])->middleware('throttle:api-general');
 Route::post('/games/check', [GameScraperController::class, 'checkGame'])->middleware('throttle:api-general');
 Route::get('/games/search', [GameScraperController::class, 'searchOrImport'])->middleware('throttle:api-general');
 Route::get('/games/all', [HomeController::class, 'allGames'])->middleware('throttle:api-general');
